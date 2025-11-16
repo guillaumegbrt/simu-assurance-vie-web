@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <title>Simulateur Assurance Vie – Web</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="style.20251115142243.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js" defer></script>
+  <script>window.__BUILD_ID__ = '20251115142243'; console.log('Build', window.__BUILD_ID__);</script>
+  <script defer src="app.20251115142243.js"></script>
+</head>
+<body>
+  <header class="header">
+    <h1>Simulateur Assurance Vie – Web</h1>
+    <div class="toolbar">
+      <button id="export" type="button">💾 Exporter l’étude (.json)</button>
+      <label class="fileBtn">📂 Importer l’étude (.json)
+        <input type="file" id="import" accept="application/json">
+      </label>
+      <label>OpenFIGI API Key (optionnel)
+        <input type="text" id="openfigiKey" placeholder="X-OPENFIGI-APIKEY"/>
+      </label>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Paramètres généraux</h2>
+      <fieldset>
+        <legend>Frais d’entrée (Fonds € & UC)</legend>
+        <label>Frais d'entrée (%)
+          <input type="number" step="0.01" id="feeInEuro" value="0"/>
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>Taux du Fonds Euro (annuel net, %)</legend>
+        <div id="euroRates"></div>
+        <button id="addRate" type="button">+ Ajouter une année</button>
+      </fieldset>
+    </section>
+
+    <section class="card">
+      <h2>Unités de Compte (UC) — ISIN uniquement</h2>
+      <p>Saisir le <strong>code ISIN</strong> ; le <strong>nom</strong> et l’historique seront récupérés automatiquement (OpenFIGI + Stooq). En cas d’échec, charge un CSV <code>Date,Close</code>.</p>
+      <div class="table-wrap">
+        <table id="ucTable">
+          <thead>
+            <tr><th>ISIN</th><th>Nom détecté</th><th>Source</th><th>CSV</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <button id="addUC" type="button">+ Ajouter une UC (ISIN)</button>
+      <details>
+        <summary>Charger un CSV (fallback)</summary>
+        <input type="file" id="csvUpload" accept=".csv"/>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>Scénarios</h2>
+      <div class="scenario" data-s="1">
+        <h3>Scénario 1 — Versement initial</h3>
+        <div class="sc-grid">
+          <div>
+            <label>Date de début <input type="date" class="s-date"/></label>
+            <label>Versement initial (€) <input type="number" class="s-init" value="10000"/></label>
+          </div>
+          <div class="alloc-wrap">
+            <h4>Répartition (%)</h4>
+            <div class="alloc" data-alloc="1"></div>
+            <div class="sum">Total : <span class="sumv" data-sum="1">0</span>%</div>
+          </div>
+        </div>
+      </div>
+      <div class="scenario" data-s="2">
+        <h3>Scénario 2 — Initial + programmés</h3>
+        <div class="sc-grid">
+          <div>
+            <label>Date de début <input type="date" class="s-date"/></label>
+            <label>Versement initial (€) <input type="number" class="s-init" value="1000"/></label>
+            <label>Programmés (€) <input type="number" class="s-prog" value="100"/></label>
+            <label>Fréquence
+              <select class="s-freq"><option>Mensuel</option><option>Trimestriel</option><option>Annuel</option></select>
+            </label>
+            <label>Début des programmés <input type="date" class="s-prog-start"/></label>
+            <label>Fin des programmés <input type="date" class="s-prog-end"/></label>
+          </div>
+          <div class="alloc-wrap">
+            <h4>Répartition (%)</h4>
+            <div class="alloc" data-alloc="2"></div>
+            <div class="sum">Total : <span class="sumv" data-sum="2">0</span>%</div>
+          </div>
+        </div>
+      </div>
+      <div class="scenario" data-s="3">
+        <h3>Scénario 3 — Paramétrable</h3>
+        <div class="sc-grid">
+          <div>
+            <label>Date de début <input type="date" class="s-date"/></label>
+            <label>Versement initial (€) <input type="number" class="s-init" value="1000"/></label>
+            <label>Programmés (€) <input type="number" class="s-prog" value="100"/></label>
+            <label>Fréquence
+              <select class="s-freq"><option>Mensuel</option><option>Trimestriel</option><option>Annuel</option></select>
+            </label>
+            <label>Début des programmés <input type="date" class="s-prog-start"/></label>
+            <label>Fin des programmés <input type="date" class="s-prog-end"/></label>
+          </div>
+          <div class="alloc-wrap">
+            <h4>Répartition (%)</h4>
+            <div class="alloc" data-alloc="3"></div>
+            <div class="sum">Total : <span class="sumv" data-sum="3">0</span>%</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <button id="run" class="run" type="button">▶️ Lancer la simulation</button>
+    </section>
+
+    <section class="card">
+      <h2>Graphiques</h2>
+      <canvas id="chart" height="110"></canvas>
+    </section>
+  </main>
+
+  <div id="errorBanner" hidden></div>
+</body>
+</html>

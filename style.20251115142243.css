@@ -1,0 +1,30 @@
+/* Layout proche de la 1ère version (grille simple) */
+:root { --bg:#0f172a; --card:#111827; --text:#d1d5db; --accent:#38bdf8; --red:#ef4444; }
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto; background:var(--bg);color:var(--text)}
+.header{padding:16px 24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;padding:0 16px 16px}
+.card{background:var(--card);border-radius:8px;padding:16px;box-shadow:0 1px 4px #0006}
+fieldset{border:1px solid #374151;border-radius:6px;padding:8px 12px;margin:8px 0}
+label{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+input,select,button{padding:8px;border-radius:6px;border:1px solid #374151;background:#0b1220;color:var(--text)}
+button{cursor:pointer;background:#0b3b4f}
+button:hover{background:#115e77}
+small{opacity:.8}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.fileBtn{display:inline-flex; align-items:center; gap:6px; padding:8px; border:1px solid #374151; border-radius:6px; background:#0b3b4f; cursor:pointer}
+.fileBtn input{display:none}
+
+.table-wrap{max-width:100%; overflow-x:auto}
+#ucTable{ display:block; overflow-x:auto; white-space:nowrap; border-collapse:collapse; min-width:680px }
+th,td{padding:6px 10px;border-bottom:1px solid #374151;vertical-align:middle}
+.nom-tag{display:inline-block;padding:4px 8px;background:#0b1220;border:1px solid #374151;border-radius:6px;min-width:200px}
+
+.sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){ .sc-grid{grid-template-columns:1fr} }
+.alloc{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:8px}
+.alloc-wrap h4{margin:.2rem 0 .4rem}
+.sum{margin-top:8px;font-weight:600}
+.sum.over .sumv{color:var(--red)}
+
+#errorBanner{position:fixed;bottom:10px;left:10px;right:10px;background:#7f1d1d;color:#fff;padding:10px;border-radius:6px;display:none;z-index:1000}
