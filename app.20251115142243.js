@@ -282,22 +282,41 @@ let chart; function renderChart(xMonths,{indices,scenarios}){ const ctx=byId('ch
 function alignSeries(xMonths, pts){ const map=new Map(pts.map(p=>[p.x,p.y])); return xMonths.map(m=> map.get(m) ?? null); }
 
 // Run & handlers
-async function runSimulation(){
-  try{
+function updateStateFromUI() {
     state.euro.feeIn = +(byId('feeInEuro')?.value || 0);
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
-      s.start=box.querySelector('.s-date')?.value||"";
-      s.init=+(box.querySelector('.s-init')?.value||0);
-      const prog=box.querySelector('.s-prog');
-      s.prog=prog? +prog.value||0 : 0;
-      const freq=box.querySelector('.s-freq');
-      s.freq=freq? freq.value : 'Mensuel';
-      const ps=box.querySelector('.s-prog-start');
-      s.progStart=ps? ps.value : '';
-      const pe=box.querySelector('.s-prog-end');
-      s.progEnd=pe? pe.value : '';
+      if (!s) return;
+
+      const startDate = box.querySelector('.s-date');
+      if (startDate) s.start = startDate.value || "";
+
+      const init = box.querySelector('.s-init');
+      if (init) s.init = +init.value || 0;
+      
+      const prog = box.querySelector('.s-prog');
+      if (prog) s.prog = +prog.value || 0;
+
+      const freq = box.querySelector('.s-freq');
+      if (freq) s.freq = freq.value;
+
+      const progStart = box.querySelector('.s-prog-start');
+      if (progStart) s.progStart = progStart.value || '';
+
+      const progEnd = box.querySelector('.s-prog-end');
+      if (progEnd) s.progEnd = progEnd.value || '';
+
+      const months = box.querySelector('.s-months');
+      if (months) s.months = +months.value || 0;
+
+      const euroAmount = box.querySelector('.s-euro-amount');
+      if (euroAmount) s.euroAmount = +euroAmount.value || 0;
     });
+}
+
+async function runSimulation(){
+  try{
+    updateStateFromUI();
     save();
 
     // Fetch all required data
@@ -359,7 +378,7 @@ async function runSimulation(){
 function attachHandlers(){ byId('addRate')?.addEventListener('click', ()=>{ state.euro.rates.push({year: dayjs().year(), rate:2}); buildEuroRates(); save(); });
 setupUcSelection();
 byId('run')?.addEventListener('click', runSimulation);
-byId('export')?.addEventListener('click', ()=>{ const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`etude_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); });
+byId('export')?.addEventListener('click', ()=>{ updateStateFromUI(); const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`etude_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); });
 byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return;
   try{
     const text=await f.text();
