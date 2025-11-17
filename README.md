@@ -1,6 +1,6 @@
-# Simulateur AV – V1.29
+# Simulateur AV – V1.30
 
-Cette version V1.29 correspond aux fichiers **style.20251115142243.css** et **app.20251115142243.js**.
+Cette version V1.30 correspond aux fichiers **style.20251115142243.css** et **app.20251115142243.js**.
 - UC par **ISIN** uniquement → nom auto (OpenFIGI) + historique (Stooq), fallback CSV.
 - **Répartition (%)** par scénario (Fonds € + UC), **Total** rouge si **> 100%**.
 

@@ -1,5 +1,5 @@
 /* global Chart, dayjs */
-console.log('Build V1.29');
+console.log('Build V1.30');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -501,8 +501,8 @@ async function runSimulation(){
     save();
 
     const dataPromises = [
-      EODProvider.fetchMonthly('FCHI.INDX'),
-      EODProvider.fetchMonthly('GSPC.INDX')
+      FMPProvider.fetchMonthly('^FCHI'),
+      FMPProvider.fetchMonthly('^GSPC')
     ];
     
     const ucPromises = state.ucs.map(uc => {
