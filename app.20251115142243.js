@@ -133,8 +133,6 @@ function addUcToSelectedTable(uc) {
     tr.dataset.isin = uc.isin;
     tr.innerHTML = `
         <td>${uc.name} (${uc.isin})</td>
-        <td></td>
-        <td></td>
         <td><button class="remove-uc" type="button">×</button></td>
     `;
     selectedUcList.appendChild(tr);
