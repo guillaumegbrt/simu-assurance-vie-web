@@ -1,6 +1,6 @@
-# Simulateur AV – V1.28
+# Simulateur AV – V1.29
 
-Ce build renomme les fichiers en **style.20251115142243.css** et **app.20251115142243.js** pour **bypasser tout cache/CDN/proxy**. 
+Cette version V1.29 correspond aux fichiers **style.20251115142243.css** et **app.20251115142243.js**.
 - UC par **ISIN** uniquement → nom auto (OpenFIGI) + historique (Stooq), fallback CSV.
 - **Répartition (%)** par scénario (Fonds € + UC), **Total** rouge si **> 100%**.
 
