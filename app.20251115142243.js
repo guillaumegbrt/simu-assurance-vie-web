@@ -1,4 +1,5 @@
 /* global Chart, dayjs */
+console.log('app.js loaded and running');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{ dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_customParseFormat); }catch(e){ console.warn('Dayjs plugins', e); }
