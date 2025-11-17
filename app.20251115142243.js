@@ -7,7 +7,11 @@ const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(
 
 // Providers
 
-const EODProvider={ async fetchMonthly(isin,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${isin}?api_token=${key}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
+function proxyUrl(url) {
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+}
+
+const EODProvider={ async fetchMonthly(isin,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${isin}?api_token=${key}&period=m&fmt=json`; const r=await fetch(proxyUrl(url)); const j=await r.json(); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
 
 // Parsing helpers (sans regex)
 function splitLines(text){
@@ -59,7 +63,7 @@ function setupUcSelection() {
                 return;
             }
             try {
-                const response = await fetch(`https://eodhistoricaldata.com/api/search/${searchTerm}?api_token=${state.api.eodKey}&fmt=json`);
+                const response = await fetch(proxyUrl(`https://eodhistoricaldata.com/api/search/${searchTerm}?api_token=${state.api.eodKey}&fmt=json`));
                 if (!response.ok) throw new Error('Failed to search for UCs');
                 const results = await response.json();
                 populateUcDropdown(results);
