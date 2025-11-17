@@ -427,7 +427,7 @@ async function runSimulation(){
     // Fetch all required data
     console.log('Alpha Vantage API Key:', state.api.alphaVantageKey);
     const dataPromises = [
-      AlphaVantageProvider.fetchMonthly('CAC40', state.api.alphaVantageKey), // CAC40
+      AlphaVantageProvider.fetchMonthly('^FCHI', state.api.alphaVantageKey), // CAC40
       EODProvider.fetchMonthly('GSPC.INDX', state.api.eodKey)  // S&P500 (reverted to EOD)
     ];
     for (const uc of state.ucs) {
