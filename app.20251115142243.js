@@ -303,7 +303,7 @@ function mkMonthAxis(allRelevantDates){
   }
   return months;
 }
-let chart; function renderChart(xMonths,{indices,scenarios}){ const ctx=byId('chart').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[]; indices.forEach((it,i)=>{ ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y2', borderColor:colors[i], backgroundColor:'transparent', tension:.15}); }); scenarios.forEach((sc,i)=>{ ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15}); }); if(chart) chart.destroy(); chart=new Chart(ctx,{ type:'line', data:{labels:xMonths, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}}, y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
+let chart; function renderChart(xMonths,{indices,scenarios}, chartLabels){ const ctx=byId('chart').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[]; indices.forEach((it,i)=>{ ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y2', borderColor:colors[i], backgroundColor:'transparent', tension:.15}); }); scenarios.forEach((sc,i)=>{ ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15}); }); if(chart) chart.destroy(); chart=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}}, y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
 function alignSeries(xMonths, pts){
   const map=new Map(pts.map(p=>[p.x,p.y]));
   return xMonths.map(m=> map.get(m.format('YYYY-MM')) ?? null);
@@ -407,9 +407,11 @@ async function runSimulation(){
     console.log('Simulated Scenarios (res):', res);
     console.log('Data passed to renderChart - indices:', {label:'CAC40', series:cac}, {label:'S&P500', series:spx});
     console.log('Data passed to renderChart - scenarios:', res);
+    const chartLabels = allMonths.map(d=>d.format('MM-YYYY'));
     renderChart(
-      allMonths.map(d=>d.format('MM-YYYY')),
-      { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], scenarios: res }
+      allMonths, // Pass Day.js objects
+      { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], scenarios: res },
+      chartLabels // Pass formatted labels separately
     );
   }catch(e){ console.error('Run failed', e); }
 }
@@ -433,8 +435,8 @@ byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0
 
 function buildDefaults(){ if(!Array.isArray(state.euro.rates)) state.euro.rates=[]; if(state.euro.rates.length===0){ const y=dayjs().year(); state.euro.rates=[{year:y-1,rate:2},{year:y,rate:2}]; } }
 function populateUIFromState() {
-    console.log('populateUIFromState - state.euro.feeIn after load:', state.euro.feeIn);
-    state.euro.feeIn = +(byId('feeInEuro')?.value || 0); // Ensure feeIn is also updated
+    console.log('populateUIFromState - state.euro.feeIn after load:', state.euro.feeIn); // Keep for now
+    byId('feeInEuro').value = state.euro.feeIn || 0; // Set UI from loaded state
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
       if (!s) return;
