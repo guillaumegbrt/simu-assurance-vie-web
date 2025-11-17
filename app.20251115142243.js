@@ -1,4 +1,4 @@
-console.log('Build V1.32');
+console.log('Build V1.33');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -542,8 +542,8 @@ async function runSimulation(){
     save();
 
     const dataPromises = [
-      AlphaVantageProvider.fetchMonthly('^FCHI'),
-      AlphaVantageProvider.fetchMonthly('^GSPC')
+      AlphaVantageProvider.fetchMonthly('C40.PA'),
+      AlphaVantageProvider.fetchMonthly('SPY')
     ];
     
     const ucPromises = state.ucs.map(uc => {
