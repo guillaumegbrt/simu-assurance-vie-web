@@ -371,20 +371,12 @@ function mkMonthAxis(allRelevantDates){
   }
   return months;
 }
-let chart; function renderChart(xMonths,{indices,scenarios}, chartLabels){ const ctx=byId('chart').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[];   indices.forEach((it,i)=>{
-    if (it.series && it.series.length > 0) { // Add check here
-      ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y2', borderColor:colors[i], backgroundColor:'transparent', tension:.15});
-    }
-  });
-  scenarios.forEach((sc,i)=>{
+let chartScenario; function renderScenarioChart(xMonths,{scenarios}, chartLabels){ const ctx=byId('chart-scenarios').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[];   scenarios.forEach((sc,i)=>{
     if (sc.data && sc.data.length > 0) { // Add check here
-      ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15});
+      ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i)%colors.length], backgroundColor:'transparent', tension:.15});
     }
-  }); if(chart) chart.destroy(); chart=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}}, y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
-function alignSeries(xMonths, pts){
-  const map=new Map(pts.map(p=>[p.x,p.y]));
-  return xMonths.map(m=> map.get(m.format('YYYY-MM')) ?? null);
-}
+  }); if(chartScenario) chartScenario.destroy(); chartScenario=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}} }, plugins:{legend:{position:'top'}} }}); }
+let chartIndices; function renderIndicesChart(xMonths,{indices,ucs}, chartLabels){ const ctx=byId('chart-indices').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[]; indices.forEach((it,i)=>{ if (it.series && it.series.length > 0) { ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y1', borderColor:colors[i], backgroundColor:'transparent', tension:.15}); } }); ucs.forEach((uc,i)=>{ if (uc.series && uc.series.length > 0) { ds.push({label:uc.name||uc.isin, data: alignSeries(xMonths, uc.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15}); } }); if(chartIndices) chartIndices.destroy(); chartIndices=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
 
 // Run & handlers
 function updateStateFromUI() {
@@ -427,7 +419,7 @@ async function runSimulation(){
     // Fetch all required data
     console.log('Alpha Vantage API Key:', state.api.alphaVantageKey);
     const dataPromises = [
-      AlphaVantageProvider.fetchMonthly('^FCHI', state.api.alphaVantageKey), // CAC40
+      EODProvider.fetchMonthly('FCHI.INDX', state.api.eodKey), // CAC40 (reverted to EOD)
       EODProvider.fetchMonthly('GSPC.INDX', state.api.eodKey)  // S&P500 (reverted to EOD)
     ];
     for (const uc of state.ucs) {
@@ -479,9 +471,15 @@ async function runSimulation(){
       res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn)});
     }
     const chartLabels = allMonths.map(d=>d.format('MM-YYYY'));
-    renderChart(
+    renderScenarioChart(
       allMonths, // Pass Day.js objects
-      { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], scenarios: res },
+      { scenarios: res },
+      chartLabels // Pass formatted labels separately
+    );
+
+    renderIndicesChart(
+      allMonths, // Pass Day.js objects
+      { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], ucs: state.ucs },
       chartLabels // Pass formatted labels separately
     );
   }catch(e){ console.error('Run failed', e); }

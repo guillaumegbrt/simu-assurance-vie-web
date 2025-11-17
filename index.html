@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isSameOrBefore.js" defer></script>
-  <script>window.__BUILD_ID__ = 'V1.21'; console.log('Build', window.__BUILD_ID__);</script>
+  <script>window.__BUILD_ID__ = 'V1.22'; console.log('Build', window.__BUILD_ID__);</script>
   <script defer src="app.20251115142243.js"></script>
 </head>
 <body>
@@ -132,7 +132,9 @@
 
     <section class="card">
       <h2>Graphiques</h2>
-      <canvas id="chart" height="110"></canvas>
+      <canvas id="chart-scenarios" height="110"></canvas> <!-- Renamed existing chart -->
+      <h3 style="margin-top: 20px;">Indices & UCs</h3>
+      <canvas id="chart-indices" height="110"></canvas> <!-- New chart -->
     </section>
   </main>
 
