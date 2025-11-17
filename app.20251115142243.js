@@ -62,7 +62,6 @@ function load(){
   if(s){
     try{
       const loadedState = JSON.parse(s);
-      console.log('Loaded state from localStorage:', loadedState);
       // Migration for alloc
       if (loadedState.scenarios) {
         for (const scenario of loadedState.scenarios) {
@@ -73,14 +72,20 @@ function load(){
           }
         }
       }
-      // Merge loadedState into state, handling nested objects
-      Object.assign(state, loadedState); // Assign top-level properties
-      if (loadedState.api) { // If API settings exist in loaded state
-        Object.assign(state.api, loadedState.api); // Merge API settings
+
+      // Assign properties from loadedState, merging nested objects
+      for (const key in loadedState) {
+        if (key === 'api' || key === 'euro') {
+          // For nested objects, merge properties
+          if (loadedState[key] && typeof loadedState[key] === 'object') {
+            Object.assign(state[key], loadedState[key]);
+          }
+        } else {
+          // For other properties, assign directly
+          state[key] = loadedState[key];
+        }
       }
-      if (loadedState.euro) { // If Euro settings exist in loaded state
-        Object.assign(state.euro, loadedState.euro); // Merge Euro settings
-      }
+
     }catch{}
   }
 }
