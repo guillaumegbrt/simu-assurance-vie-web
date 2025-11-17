@@ -17,6 +17,30 @@ function proxyUrl(url) {
 
 const EODProvider={ async fetchMonthly(ucIdentifier,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${key}&period=m&fmt=json`; const r=await fetch(proxyUrl(url)); const j=await r.json(); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
 
+const AlphaVantageProvider = {
+  async fetchMonthly(symbol, key) {
+    if (!key) return null;
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol=${symbol}&apikey=${key}`;
+    const r = await fetch(url);
+    const j = await r.json();
+
+    if (j['Error Message'] || !j['Monthly Adjusted Time Series']) {
+      console.error('Alpha Vantage API Error:', j['Error Message']);
+      return null;
+    }
+
+    const series = [];
+    const timeSeries = j['Monthly Adjusted Time Series'];
+    for (const date in timeSeries) {
+      series.push({
+        date: date,
+        close: parseFloat(timeSeries[date]['5. adjusted close'])
+      });
+    }
+    return series.sort((a, b) => a.date.localeCompare(b.date));
+  }
+};
+
 // Parsing helpers (sans regex)
 function splitLines(text){
   return text.split('\n');
@@ -24,7 +48,7 @@ function splitLines(text){
 function toMonthlyReturns(series){ const out=[]; for(let i=1;i<series.length;i++){ out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out; }
 
 // State
-const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
+const state={ api:{ eodKey:'691add086f1621.85587257', alphaVantageKey: 'RCVYYB4UC60NM6NO' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
 function save(){
   localStorage.setItem('simu-av', JSON.stringify(state));
 }
@@ -354,8 +378,8 @@ async function runSimulation(){
 
     // Fetch all required data
     const dataPromises = [
-      EODProvider.fetchMonthly('FCHI.INDX', state.api.eodKey),
-      EODProvider.fetchMonthly('GSPC.INDX', state.api.eodKey)
+      AlphaVantageProvider.fetchMonthly('^FCHI', state.api.alphaVantageKey), // CAC40
+      AlphaVantageProvider.fetchMonthly('^GSPC', state.api.alphaVantageKey)  // S&P500
     ];
     for (const uc of state.ucs) {
       if (!uc.series) { // Fetch only if not already loaded
