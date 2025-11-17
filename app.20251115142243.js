@@ -1,5 +1,5 @@
 /* global Chart, dayjs */
-console.log('Build V1.25');
+console.log('Build V1.26');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -22,23 +22,29 @@ const EODProvider={ async fetchMonthly(ucIdentifier){ const url=`https://eodhist
 
 const FMPProvider = {
   async fetchMonthly(symbol) {
-    const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?apikey=${FMP_API_KEY}`;
+    const url = `https://financialmodelingprep.com/api/v3/historical-chart/1day/${symbol}?apikey=${FMP_API_KEY}`;
     try {
       const r = await fetch(url);
       const j = await r.json();
       console.log('FMPProvider fetch daily - Symbol:', symbol, 'Response:', j);
 
-      if (!j.historical) {
-        console.error('FMP API Error:', j['Error Message'] || 'No historical data');
+      if (!Array.isArray(j)) {
+        console.error('FMP API Error:', j['Error Message'] || j.error || 'No historical data');
         return null;
+      }
+      
+      if (j.length === 0) {
+        console.warn(`FMP: No data for ${symbol}`);
+        return [];
       }
 
       // Data is daily, need to resample to monthly
       const monthlyData = {};
-      for (const day of j.historical) {
-        const month = day.date.slice(0, 7); // YYYY-MM
+      for (const day of j) {
+        const date = day.date.slice(0, 10);
+        const month = date.slice(0, 7); // YYYY-MM
         // Keep the last entry for each month
-        monthlyData[month] = { date: day.date, close: day.adjClose }; 
+        monthlyData[month] = { date: date, close: day.close }; 
       }
 
       const series = Object.values(monthlyData);
