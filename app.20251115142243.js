@@ -72,7 +72,14 @@ function load(){
           }
         }
       }
-      Object.assign(state, loadedState);
+      // Merge loadedState into state, handling nested objects
+      Object.assign(state, loadedState); // Assign top-level properties
+      if (loadedState.api) { // If API settings exist in loaded state
+        Object.assign(state.api, loadedState.api); // Merge API settings
+      }
+      if (loadedState.euro) { // If Euro settings exist in loaded state
+        Object.assign(state.euro, loadedState.euro); // Merge Euro settings
+      }
     }catch{}
   }
 }
