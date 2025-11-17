@@ -62,6 +62,7 @@ function load(){
   if(s){
     try{
       const loadedState = JSON.parse(s);
+      console.log('Loaded state from localStorage:', loadedState);
       // Migration for alloc
       if (loadedState.scenarios) {
         for (const scenario of loadedState.scenarios) {
