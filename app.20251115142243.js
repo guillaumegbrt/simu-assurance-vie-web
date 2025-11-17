@@ -20,7 +20,7 @@ function splitLines(text){
 function toMonthlyReturns(series){ const out=[]; for(let i=1;i<series.length;i++){ out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out; }
 
 // State
-const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}} ]};
+const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{},euroAmount:5000} ]};
 function save(){ localStorage.setItem('simu-av', JSON.stringify(state)); }
 function load(){
   const s=localStorage.getItem('simu-av');
@@ -215,7 +215,7 @@ function updateSumFor(idx, type){
 // CSV upload
 byId('csvUpload')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return; const text=await f.text(); const lines = splitLines(text.trim()); const [h, ...rows] = lines; const headers = h.toLowerCase().split(','); const iD = headers.indexOf('date'), iC=headers.indexOf('close'); const data = rows.map(r=>{ const cols=r.split(','); return {date: cols[iD], close: +cols[iC]}; }).filter(x=>x.date && Number.isFinite(x.close)); if(state.ucs.length===0){ alert('Ajoute d’abord une UC.'); return; } const uc=state.ucs[state.ucs.length-1]; uc.csvData=data; uc.source='upload'; if(!uc.name) uc.name='CSV import'; save(); buildUCTable(); buildAllAlloc(); });
 
-function ucKey(uc){ return uc.isin; }
+function ucKey(uc){ return uc.ticker; }
 
 // Simulation & chart
 function monthDiff(a,b){ const da=dayjs(a), db=dayjs(b); return (db.year()-da.year())*12 + (db.month()-da.month()); }
@@ -393,6 +393,41 @@ byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0
 }
 
 function buildDefaults(){ if(!Array.isArray(state.euro.rates)) state.euro.rates=[]; if(state.euro.rates.length===0){ const y=dayjs().year(); state.euro.rates=[{year:y-1,rate:2},{year:y,rate:2}]; } }
-function init(skipAttach){ load(); buildDefaults(); byId('feeInEuro').value=state.euro.feeIn||0; buildEuroRates(); buildSelectedUcTable(); buildAllAlloc(); if(!skipAttach) attachHandlers(); }
+function populateUIFromState() {
+    state.euro.feeIn = +(byId('feeInEuro')?.value || 0); // Ensure feeIn is also updated
+    $$('.scenario').forEach((box,idx)=>{
+      const s=state.scenarios[idx];
+      if (!s) return;
+
+      const startDate = box.querySelector('.s-date');
+      if (startDate) startDate.value = s.start || "";
+
+      const init = box.querySelector('.s-init');
+      if (init) init.value = s.init || 0;
+      
+      const prog = box.querySelector('.s-prog');
+      if (prog) prog.value = s.prog || 0;
+
+      const freq = box.querySelector('.s-freq');
+      if (freq) freq.value = s.freq;
+
+      const progStart = box.querySelector('.s-prog-start');
+      if (progStart) progStart.value = s.progStart || '';
+
+      const progEnd = box.querySelector('.s-prog-end');
+      if (progEnd) progEnd.value = s.progEnd || '';
+
+      const months = box.querySelector('.s-months');
+      if (months) months.value = s.months || 0;
+
+      const euroAmount = box.querySelector('.s-euro-amount');
+      if (euroAmount) euroAmount.value = s.euroAmount || 0;
+    });
+    buildEuroRates(); // Rebuild euro rates UI
+    buildSelectedUcTable(); // Rebuild selected UC table UI
+    buildAllAlloc(); // Rebuild allocation UI
+}
+
+function init(skipAttach){ load(); buildDefaults(); populateUIFromState(); if(!skipAttach) attachHandlers(); }
 
 document.addEventListener('DOMContentLoaded', ()=> init(false));
