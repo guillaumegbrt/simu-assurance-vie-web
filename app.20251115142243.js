@@ -227,6 +227,10 @@ function ucKey(uc){ return uc.ticker; }
 function monthDiff(a,b){ const da=dayjs(a), db=dayjs(b); return (db.year()-da.year())*12 + (db.month()-da.month()); }
 function scheduleProg(freq){ return freq==='Mensuel'?1: freq==='Trimestriel'?3:12; }
 function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
+  console.log('Simulating Scenario:', s);
+  console.log('s.init:', s.init, 'allocInit:', s.allocInit, 'start:', s.start ? dayjs(s.start).format('YYYY-MM-DD') : 'N/A');
+  console.log('s.prog:', s.prog, 'allocProg:', s.allocProg, 'progStart:', s.progStart ? dayjs(s.progStart).format('YYYY-MM-DD') : 'N/A');
+
   const allocInit = s.allocInit || {};
   const allocProg = s.allocProg || {};
 
@@ -260,16 +264,20 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
     if(d.isSame(dayjs(start).startOf('month'), 'month')) {
       const initInflow = (+s.init||0) * (1-feeIn);
       if (initInflow > 0) {
+        console.log('Initial inflow triggered for month:', d.format('YYYY-MM-DD'));
+        console.log('initInflow:', initInflow, 'portfolio before init:', JSON.parse(JSON.stringify(portfolio)));
         for (const key in allocInit) {
           const weight = (allocInit[key] || 0) / 100;
           if(weight > 0) portfolio[key] = (portfolio[key] || 0) + initInflow * weight;
         }
+        console.log('portfolio after init:', JSON.parse(JSON.stringify(portfolio)));
       }
     }
 
     if(d.isAfter(ps.subtract(1,'day')) && d.isBefore(pe.add(1,'day'))){
       const m=monthDiff(ps.startOf('month'), d.startOf('month'));
       if(m%step===0 && (+s.prog||0) > 0) {
+        console.log('Prog inflow triggered for month:', d.format('YYYY-MM-DD'));
         const progInflow = (+s.prog||0) * (1-feeIn);
         for (const key in allocProg) {
           const weight = (allocProg[key] || 0) / 100;
