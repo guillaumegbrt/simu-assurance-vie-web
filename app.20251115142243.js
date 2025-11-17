@@ -22,7 +22,10 @@ function toMonthlyReturns(series){ const out=[]; for(let i=1;i<series.length;i++
 
 // State
 const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{},euroAmount:5000} ]};
-function save(){ localStorage.setItem('simu-av', JSON.stringify(state)); }
+function save(){
+  console.log('Saving state.euro.feeIn:', state.euro.feeIn);
+  localStorage.setItem('simu-av', JSON.stringify(state));
+}
 function load(){
   const s=localStorage.getItem('simu-av');
   if(s){
@@ -39,6 +42,7 @@ function load(){
         }
       }
       Object.assign(state, loadedState);
+      console.log('Loaded state.euro.feeIn:', state.euro.feeIn);
     }catch{}
   }
 }
@@ -284,7 +288,26 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
   }
   return out;
 }
-function mkMonthAxis(list){ const months=new Set(); for(const arr of list){ const src=Array.isArray(arr)? arr:[]; for(const el of src){ const d=typeof el==='string'? el: el.date; const m=dayjs(d).utc().format('YYYY-MM-01'); if(m!=='Invalid Date') months.add(m); } } return [...months].sort().map(d=>dayjs(d)); }
+function mkMonthAxis(allRelevantDates){
+  if (allRelevantDates.length === 0) return [];
+
+  let earliest = dayjs(allRelevantDates[0]);
+  let latest = dayjs(allRelevantDates[0]);
+
+  for (const dateStr of allRelevantDates) {
+    const d = dayjs(dateStr);
+    if (d.isBefore(earliest)) earliest = d;
+    if (d.isAfter(latest)) latest = d;
+  }
+
+  const months = [];
+  let currentMonth = earliest.startOf('month');
+  while (currentMonth.isSameOrBefore(latest.startOf('month'))) {
+    months.push(currentMonth);
+    currentMonth = currentMonth.add(1, 'month');
+  }
+  return months;
+}
 let chart; function renderChart(xMonths,{indices,scenarios}){ const ctx=byId('chart').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[]; indices.forEach((it,i)=>{ ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y2', borderColor:colors[i], backgroundColor:'transparent', tension:.15}); }); scenarios.forEach((sc,i)=>{ ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15}); }); if(chart) chart.destroy(); chart=new Chart(ctx,{ type:'line', data:{labels:xMonths, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}}, y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
 function alignSeries(xMonths, pts){ const map=new Map(pts.map(p=>[p.x,p.y])); return xMonths.map(m=> map.get(m) ?? null); }
 
@@ -349,13 +372,22 @@ async function runSimulation(){
         rByUC[ucKey(uc)] = m;
       }
     }
-    let allMonths = mkMonthAxis([
-      cac,
-      spx,
-      ...Object.values(rByUC).map(m=>[...m.keys()].map(k=>k+'-01')),
-      ...state.scenarios.map(s => s.start).filter(Boolean) // Include all scenario start dates
-    ]);
-    console.log('All Months:', allMonths.map(d => d.format('YYYY-MM-DD')));
+    // Collect all relevant dates
+    const allRelevantDates = [];
+    // Add dates from CAC, SPX
+    if (cac) allRelevantDates.push(...cac.map(x => x.date));
+    if (spx) allRelevantDates.push(...spx.map(x => x.date));
+    // Add dates from UCs
+    for (const uc of state.ucs) {
+      if (uc.series) allRelevantDates.push(...uc.series.map(x => x.date));
+    }
+    // Add scenario start and end dates
+    for (const s of state.scenarios) {
+      if (s.start) allRelevantDates.push(s.start);
+      if (s.progEnd) allRelevantDates.push(s.progEnd);
+    }
+
+    let allMonths = mkMonthAxis(allRelevantDates);
 
     const euroByYear = Object.fromEntries(state.euro.rates.map(x=>[x.year, +x.rate||0]));
     const res=[];
