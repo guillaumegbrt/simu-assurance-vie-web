@@ -1,4 +1,5 @@
 /* global Chart, dayjs */
+console.log('Build V1.25');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -11,12 +12,43 @@ const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(
 
 // Providers
 const EOD_API_KEY = '691add086f1621.85587257'; // Hardcoded API Key
+const FMP_API_KEY = 'HDGkWI9zBe25ssnAimuYP5FM9ahX0W4G'; // Hardcoded API Key
 
 function proxyUrl(url) {
   return url;
 }
 
 const EODProvider={ async fetchMonthly(ucIdentifier){ const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${EOD_API_KEY}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); console.log('EODProvider fetchMonthly - Symbol:', ucIdentifier, 'Response:', j); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
+
+const FMPProvider = {
+  async fetchMonthly(symbol) {
+    const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?apikey=${FMP_API_KEY}`;
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      console.log('FMPProvider fetch daily - Symbol:', symbol, 'Response:', j);
+
+      if (!j.historical) {
+        console.error('FMP API Error:', j['Error Message'] || 'No historical data');
+        return null;
+      }
+
+      // Data is daily, need to resample to monthly
+      const monthlyData = {};
+      for (const day of j.historical) {
+        const month = day.date.slice(0, 7); // YYYY-MM
+        // Keep the last entry for each month
+        monthlyData[month] = { date: day.date, close: day.adjClose }; 
+      }
+
+      const series = Object.values(monthlyData);
+      return series.sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+      console.error('Error fetching from FMP:', error);
+      return null;
+    }
+  }
+};
 
 // Parsing helpers (sans regex)
 function splitLines(text){
@@ -25,7 +57,7 @@ function splitLines(text){
 function toMonthlyReturns(series){
   if (!series || series.length < 2) return []; // Handle null or insufficient data
   const out=[];
-  for(let i=1;i<series.length;i++){ out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out;
+  for(let i=1;i<series.length;i++){ if(series[i-1].close > 0) out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out;
 }
 
 // State
@@ -70,8 +102,8 @@ function load(){
 
 // UI builders
 function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
-function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Année</th><th>Taux annuel net (%)</th><th></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; } 
-  host.appendChild(tbl); }
+function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const wrap = document.createElement('div'); wrap.className = 'table-wrap'; const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Année</th><th>Taux annuel net (%)</th><th></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; } 
+  wrap.appendChild(tbl); host.appendChild(wrap); }
 
 function setupUcSelection() {
     const ucSearch = byId('uc-search');
@@ -89,7 +121,7 @@ function setupUcSelection() {
                 return;
             }
             try {
-                const response = await fetch(proxyUrl(`https://eodhistoricaldata.com/api/search/${searchTerm}?api_token=${EOD_API_KEY}&fmt=json`));
+                const response = await fetch(`https://financialmodelingprep.com/api/v3/search?query=${searchTerm}&limit=20&apikey=${FMP_API_KEY}`);
                 if (!response.ok) throw new Error('Failed to search for UCs');
                 const results = await response.json();
                 populateUcDropdown(results);
@@ -104,17 +136,17 @@ function setupUcSelection() {
         const selectedOption = ucList.options[ucList.selectedIndex];
         if (!selectedOption) return;
 
-        const { name, isin, code, exchange } = selectedOption.dataset;
-        if (!isin) {
-            alert("Cette sélection n'a pas de code ISIN, elle ne peut pas être ajoutée.");
+        const { name, symbol } = selectedOption.dataset;
+        if (!symbol) {
+            alert("Cette sélection n'a pas de symbole, elle ne peut pas être ajoutée.");
             return;
         }
-        if (state.ucs.find(uc => uc.isin === isin)) {
+        if (state.ucs.find(uc => uc.symbol === symbol)) {
             alert('Cette UC est déjà dans la liste.');
             return;
         }
         
-        const uc = { isin, name, ticker: `${code}.${exchange}`, source: 'eod', series: null };
+        const uc = { symbol, name, ticker: symbol, source: 'fmp', series: null };
         state.ucs.push(uc);
         addUcToSelectedTable(uc);
         buildAllAlloc();
@@ -124,13 +156,16 @@ function setupUcSelection() {
     selectedUcList.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-uc')) {
             const row = e.target.closest('tr');
-            const isin = row.dataset.isin;
-            state.ucs = state.ucs.filter(uc => uc.isin !== isin);
-            // Also remove allocations for this UC
-            state.scenarios.forEach(s => {
-                delete s.allocInit[isin];
-                delete s.allocProg[isin];
-            });
+            const symbol = row.dataset.symbol;
+            const ucToRemove = state.ucs.find(uc => uc.symbol === symbol);
+            if (ucToRemove) {
+                const key = ucKey(ucToRemove);
+                state.scenarios.forEach(s => {
+                    delete s.allocInit[key];
+                    delete s.allocProg[key];
+                });
+            }
+            state.ucs = state.ucs.filter(uc => uc.symbol !== symbol);
             row.remove();
             buildAllAlloc();
             save();
@@ -147,12 +182,10 @@ function populateUcDropdown(results) {
     }
     results.forEach(uc => {
         const option = document.createElement('option');
-        option.value = uc.ISIN;
-        option.textContent = `${uc.Name} (${uc.Code}, ${uc.Exchange}, ISIN: ${uc.ISIN || 'N/A'})`;
-        option.dataset.name = uc.Name;
-        option.dataset.isin = uc.ISIN;
-        option.dataset.code = uc.Code;
-        option.dataset.exchange = uc.Exchange;
+        option.value = uc.symbol;
+        option.textContent = `${uc.name} (${uc.symbol}, ${uc.exchangeShortName})`;
+        option.dataset.name = uc.name;
+        option.dataset.symbol = uc.symbol;
         ucList.appendChild(option);
     });
 }
@@ -160,9 +193,9 @@ function populateUcDropdown(results) {
 function addUcToSelectedTable(uc) {
     const selectedUcList = byId('selected-uc-list');
     const tr = document.createElement('tr');
-    tr.dataset.isin = uc.isin;
+    tr.dataset.symbol = uc.symbol;
     tr.innerHTML = `
-        <td>${uc.name} (${uc.isin})</td>
+        <td>${uc.name} (${uc.symbol})</td>
         <td><button class="remove-uc" type="button">×</button></td>
     `;
     selectedUcList.appendChild(tr);
@@ -187,7 +220,7 @@ function buildAllocForScenario(idx){
     for(const uc of state.ucs){
       const key=ucKey(uc);
       if(allocInit[key]===undefined) allocInit[key]=0;
-      const label=uc.name||uc.isin||'UC';
+      const label=uc.name||uc.symbol||'UC';
       hostInit.appendChild(makeAllocRow(idx, key, label, allocInit[key], 'Init'));
     }
   }
@@ -202,7 +235,7 @@ function buildAllocForScenario(idx){
     for(const uc of state.ucs){
       const key=ucKey(uc);
       if(allocProg[key]===undefined) allocProg[key]=0;
-      const label=uc.name||uc.isin||'UC';
+      const label=uc.name||uc.symbol||'UC';
       hostProg.appendChild(makeAllocRow(idx, key, label, allocProg[key], 'Prog'));
     }
   }
@@ -448,17 +481,24 @@ async function runSimulation(){
     save();
 
     const dataPromises = [
-      EODProvider.fetchMonthly('FCHI.INDX'),
-      EODProvider.fetchMonthly('GSPC.INDX')
+      FMPProvider.fetchMonthly('^FCHI'),
+      FMPProvider.fetchMonthly('^GSPC')
     ];
     
-    const ucPromises = state.ucs.map(uc => 
-        EODProvider.fetchMonthly(uc.ticker).then(series => {
+    const ucPromises = state.ucs.map(uc => {
+        if (uc.source === 'upload') {
+            uc.raw_series = uc.csvData || [];
+            uc.series = toMonthlyReturns(uc.raw_series);
+            return Promise.resolve(uc);
+        }
+
+        const provider = uc.source === 'fmp' ? FMPProvider : EODProvider;
+        return provider.fetchMonthly(uc.ticker).then(series => {
           uc.raw_series = series; // Store raw series for charting
           uc.series = toMonthlyReturns(series); // Store returns for simulation
           return uc;
         })
-    );
+    });
 
     const [cac, spx] = await Promise.all(dataPromises);
     await Promise.all(ucPromises);
