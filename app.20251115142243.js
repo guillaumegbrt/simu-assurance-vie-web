@@ -304,7 +304,7 @@ function updateStateFromUI() {
       if (progStart) s.progStart = progStart.value || '';
 
       const progEnd = box.querySelector('.s-prog-end');
-      if (progEnd) s.progEnd = progEnd.value || '';
+      if (progEnd) s.progEnd = progEnd.value || dayjs().format('YYYY-MM-DD');
 
       const months = box.querySelector('.s-months');
       if (months) s.months = +months.value || 0;
@@ -342,20 +342,12 @@ async function runSimulation(){
         rByUC[ucKey(uc)] = m;
       }
     }
-    let allMonths = mkMonthAxis([cac, spx, ...Object.values(rByUC).map(m=>[...m.keys()].map(k=>k+'-01'))]);
-    
-    const scenarioStartDates = state.scenarios.map(s => s.start).filter(Boolean).map(d => dayjs(d));
-    if (scenarioStartDates.length > 0) {
-      let earliestScenarioStart = scenarioStartDates[0];
-      for (let i = 1; i < scenarioStartDates.length; i++) {
-        if (scenarioStartDates[i].isBefore(earliestScenarioStart)) {
-          earliestScenarioStart = scenarioStartDates[i];
-        }
-      }
-      if (earliestScenarioStart.isValid()) {
-        allMonths = allMonths.filter(m => m.isAfter(earliestScenarioStart.subtract(1, 'month')));
-      }
-    }
+    let allMonths = mkMonthAxis([
+      cac,
+      spx,
+      ...Object.values(rByUC).map(m=>[...m.keys()].map(k=>k+'-01')),
+      ...state.scenarios.map(s => s.start).filter(Boolean) // Include all scenario start dates
+    ]);
 
     const euroByYear = Object.fromEntries(state.euro.rates.map(x=>[x.year, +x.rate||0]));
     const res=[];
