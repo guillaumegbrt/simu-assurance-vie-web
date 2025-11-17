@@ -15,7 +15,7 @@ function proxyUrl(url) {
   return url;
 }
 
-const EODProvider={ async fetchMonthly(ucIdentifier,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${key}&period=m&fmt=json`; const r=await fetch(proxyUrl(url)); const j=await r.json(); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
+const EODProvider={ async fetchMonthly(ucIdentifier,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${key}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); console.log('EODProvider fetchMonthly - Symbol:', ucIdentifier, 'Response:', j); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
 
 const AlphaVantageProvider = {
   async fetchMonthly(symbol, key) {
@@ -23,6 +23,7 @@ const AlphaVantageProvider = {
     const url = `https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol=${symbol}&apikey=${key}`;
     const r = await fetch(url);
     const j = await r.json();
+    console.log('AlphaVantageProvider fetchMonthly - Symbol:', symbol, 'Response:', j);
 
     if (j['Error Message'] || !j['Monthly Adjusted Time Series']) {
       console.error('Alpha Vantage API Error:', j['Error Message']);
@@ -336,7 +337,16 @@ function mkMonthAxis(allRelevantDates){
   }
   return months;
 }
-let chart; function renderChart(xMonths,{indices,scenarios}, chartLabels){ const ctx=byId('chart').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[]; indices.forEach((it,i)=>{ ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y2', borderColor:colors[i], backgroundColor:'transparent', tension:.15}); }); scenarios.forEach((sc,i)=>{ ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15}); }); if(chart) chart.destroy(); chart=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}}, y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
+let chart; function renderChart(xMonths,{indices,scenarios}, chartLabels){ const ctx=byId('chart').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[];   indices.forEach((it,i)=>{
+    if (it.series && it.series.length > 0) { // Add check here
+      ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y2', borderColor:colors[i], backgroundColor:'transparent', tension:.15});
+    }
+  });
+  scenarios.forEach((sc,i)=>{
+    if (sc.data && sc.data.length > 0) { // Add check here
+      ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15});
+    }
+  }); if(chart) chart.destroy(); chart=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}}, y2:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
 function alignSeries(xMonths, pts){
   const map=new Map(pts.map(p=>[p.x,p.y]));
   return xMonths.map(m=> map.get(m.format('YYYY-MM')) ?? null);
@@ -394,6 +404,8 @@ async function runSimulation(){
       }
     }
     const [cac, spx] = await Promise.all(dataPromises);
+    console.log('CAC after fetch:', cac);
+    console.log('SPX after fetch:', spx);
 
     const rCAC = toMonthlyReturns(cac), rSPX = toMonthlyReturns(spx);
     const rByUC={};
