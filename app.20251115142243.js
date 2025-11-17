@@ -221,6 +221,9 @@ function ucKey(uc){ return uc.ticker; }
 function monthDiff(a,b){ const da=dayjs(a), db=dayjs(b); return (db.year()-da.year())*12 + (db.month()-da.month()); }
 function scheduleProg(freq){ return freq==='Mensuel'?1: freq==='Trimestriel'?3:12; }
 function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
+  console.log('Simulating Scenario:', s);
+  console.log('s.init:', s.init, 'allocInit:', s.allocInit, 'start:', s.start ? dayjs(s.start).format('YYYY-MM-DD') : 'N/A');
+
   const allocInit = s.allocInit || {};
   const allocProg = s.allocProg || {};
 
@@ -251,13 +254,16 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
     }
 
     // 2. Handle inflows
-    if(d.isSame(start,'month')) {
+    if(d.isSame(dayjs(start).startOf('month'), 'month')) {
       const initInflow = (+s.init||0) * (1-feeIn);
       if (initInflow > 0) {
+        console.log('Initial inflow triggered for month:', d.format('YYYY-MM-DD'));
+        console.log('initInflow:', initInflow, 'portfolio before init:', JSON.parse(JSON.stringify(portfolio)));
         for (const key in allocInit) {
           const weight = (allocInit[key] || 0) / 100;
           if(weight > 0) portfolio[key] = (portfolio[key] || 0) + initInflow * weight;
         }
+        console.log('portfolio after init:', JSON.parse(JSON.stringify(portfolio)));
       }
     }
 
@@ -348,6 +354,7 @@ async function runSimulation(){
       ...Object.values(rByUC).map(m=>[...m.keys()].map(k=>k+'-01')),
       ...state.scenarios.map(s => s.start).filter(Boolean) // Include all scenario start dates
     ]);
+    console.log('All Months:', allMonths.map(d => d.format('YYYY-MM-DD')));
 
     const euroByYear = Object.fromEntries(state.euro.rates.map(x=>[x.year, +x.rate||0]));
     const res=[];
@@ -361,7 +368,7 @@ async function runSimulation(){
       res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn)});
     }
     renderChart(
-      allMonths.map(d=>d.format('YYYY-MM')),
+      allMonths.map(d=>d.format('MM-YYYY')),
       { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], scenarios: res }
     );
   }catch(e){ console.error('Run failed', e); }
