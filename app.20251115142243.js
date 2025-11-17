@@ -45,7 +45,11 @@ const AlphaVantageProvider = {
 function splitLines(text){
   return text.split('\n');
 }
-function toMonthlyReturns(series){ const out=[]; for(let i=1;i<series.length;i++){ out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out; }
+function toMonthlyReturns(series){
+  if (!series || series.length < 2) return []; // Handle null or insufficient data
+  const out=[];
+  for(let i=1;i<series.length;i++){ out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out;
+}
 
 // State
 const state={ api:{ eodKey:'691add086f1621.85587257', alphaVantageKey: 'RCVYYB4UC60NM6NO' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
@@ -378,8 +382,8 @@ async function runSimulation(){
 
     // Fetch all required data
     const dataPromises = [
-      AlphaVantageProvider.fetchMonthly('^FCHI', state.api.alphaVantageKey), // CAC40
-      AlphaVantageProvider.fetchMonthly('^GSPC', state.api.alphaVantageKey)  // S&P500
+      AlphaVantageProvider.fetchMonthly('CAC40', state.api.alphaVantageKey), // CAC40
+      EODProvider.fetchMonthly('GSPC.INDX', state.api.eodKey)  // S&P500 (reverted to EOD)
     ];
     for (const uc of state.ucs) {
       if (!uc.series) { // Fetch only if not already loaded
