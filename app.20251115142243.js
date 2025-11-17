@@ -10,64 +10,13 @@ try{
 const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(c.querySelectorAll(s)); const byId=id=>document.getElementById(id);
 
 // Providers
+const EOD_API_KEY = '691add086f1621.85587257'; // Hardcoded API Key
 
 function proxyUrl(url) {
   return url;
 }
 
-const EODProvider={ async fetchMonthly(ucIdentifier,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${key}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); console.log('EODProvider fetchMonthly - Symbol:', ucIdentifier, 'Response:', j); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
-
-const AlphaVantageProvider = {
-  async fetchMonthly(symbol, key) {
-    if (!key) return null;
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol=${symbol}&apikey=${key}`;
-    const r = await fetch(url);
-    const j = await r.json();
-    console.log('AlphaVantageProvider fetchMonthly - Symbol:', symbol, 'Response:', j);
-
-    if (j['Error Message'] || !j['Monthly Adjusted Time Series']) {
-      console.error('Alpha Vantage API Error:', j['Error Message']);
-      return null;
-    }
-
-    const series = [];
-    const timeSeries = j['Monthly Adjusted Time Series'];
-    for (const date in timeSeries) {
-      series.push({
-        date: date,
-        close: parseFloat(timeSeries[date]['5. adjusted close'])
-      });
-    }
-    return series.sort((a, b) => a.date.localeCompare(b.date));
-  }
-};
-
-const TwelveDataProvider = {
-  async fetchMonthly(symbol, key) {
-    if (!key) return null;
-    const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1month&apikey=${key}&outputsize=5000`;
-    try {
-      const r = await fetch(proxyUrl(url));
-      const j = await r.json();
-      console.log('TwelveDataProvider fetchMonthly - Symbol:', symbol, 'Response:', j);
-
-      if (j.code >= 400 || !j.values) {
-        console.error('Twelve Data API Error:', j.message);
-        return null;
-      }
-
-      const series = j.values.map(v => ({
-        date: v.datetime,
-        close: parseFloat(v.close)
-      }));
-      
-      return series.sort((a, b) => a.date.localeCompare(b.date));
-    } catch (error) {
-      console.error('Error fetching from Twelve Data:', error);
-      return null;
-    }
-  }
-};
+const EODProvider={ async fetchMonthly(ucIdentifier){ const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${EOD_API_KEY}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); console.log('EODProvider fetchMonthly - Symbol:', ucIdentifier, 'Response:', j); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
 
 // Parsing helpers (sans regex)
 function splitLines(text){
@@ -80,7 +29,7 @@ function toMonthlyReturns(series){
 }
 
 // State
-const state={ api:{ eodKey:'691add086f1621.85587257', alphaVantageKey: 'RCVYYB4UC60NM6NO', twelveDataKey: '' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
+const state={ euro:{ feeIn:0, rates:[] }, fees: { mgmtEuro: 0.7, mgmtUC: 0.8 }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
 function save(){
   localStorage.setItem('simu-av', JSON.stringify(state));
 }
@@ -99,44 +48,25 @@ function load(){
           }
         }
       }
-
-            // Assign properties from loadedState, merging nested objects
-
-            for (const key in loadedState) {
-
-              if (key === 'api' || key === 'euro') {
-
-                // For nested objects, merge properties
-
-                if (loadedState[key] && typeof loadedState[key] === 'object') {
-
-                  Object.assign(state[key], loadedState[key]);
-
-                }
-
-              } else {
-
-                // For other properties, assign directly
-
-                state[key] = loadedState[key];
-
-              }
-
-            }
-
-          }catch{}
-
-        }
-
-        // Ensure alphaVantageKey is always set from the code's default if it's missing
-
-        if (!state.api.alphaVantageKey) {
-
-          state.api.alphaVantageKey = 'RCVYYB4UC60NM6NO';
-
-        }
-
+      
+      // Clean up old API key structure if it exists
+      if (loadedState.api) {
+        delete loadedState.api;
       }
+
+      // Assign properties from loadedState, merging nested objects
+      for (const key in loadedState) {
+        if (key === 'euro' || key === 'fees') {
+          if (loadedState[key] && typeof loadedState[key] === 'object') {
+            Object.assign(state[key], loadedState[key]);
+          }
+        } else {
+          state[key] = loadedState[key];
+        }
+      }
+    }catch{}
+  }
+}
 
 // UI builders
 function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
@@ -159,7 +89,7 @@ function setupUcSelection() {
                 return;
             }
             try {
-                const response = await fetch(proxyUrl(`https://eodhistoricaldata.com/api/search/${searchTerm}?api_token=${state.api.eodKey}&fmt=json`));
+                const response = await fetch(proxyUrl(`https://eodhistoricaldata.com/api/search/${searchTerm}?api_token=${EOD_API_KEY}&fmt=json`));
                 if (!response.ok) throw new Error('Failed to search for UCs');
                 const results = await response.json();
                 populateUcDropdown(results);
@@ -308,14 +238,15 @@ function updateSumFor(idx, type){
   }
 }
 
-// CSV uploadyId('csvUpload')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return; const text=await f.text(); const lines = splitLines(text.trim()); const [h, ...rows] = lines; const headers = h.toLowerCase().split(','); const iD = headers.indexOf('date'), iC=headers.indexOf('close'); const data = rows.map(r=>{ const cols=r.split(','); return {date: cols[iD], close: +cols[iC]}; }).filter(x=>x.date && Number.isFinite(x.close)); if(state.ucs.length===0){ alert('Ajoute d’abord une UC.'); return; } const uc=state.ucs[state.ucs.length-1]; uc.csvData=data; uc.source='upload'; if(!uc.name) uc.name='CSV import'; save(); buildUCTable(); buildAllAlloc(); });
+// CSV upload
+byId('csvUpload')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return; const text=await f.text(); const lines = splitLines(text.trim()); const [h, ...rows] = lines; const headers = h.toLowerCase().split(','); const iD = headers.indexOf('date'), iC=headers.indexOf('close'); const data = rows.map(r=>{ const cols=r.split(','); return {date: cols[iD], close: +cols[iC]}; }).filter(x=>x.date && Number.isFinite(x.close)); if(state.ucs.length===0){ alert('Ajoute d’abord une UC.'); return; } const uc=state.ucs[state.ucs.length-1]; uc.csvData=data; uc.source='upload'; if(!uc.name) uc.name='CSV import'; save(); buildUCTable(); buildAllAlloc(); });
 
 function ucKey(uc){ return uc.ticker; }
 
 // Simulation & chart
 function monthDiff(a,b){ const da=dayjs(a), db=dayjs(b); return (db.year()-da.year())*12 + (db.month()-da.month()); }
 function scheduleProg(freq){ return freq==='Mensuel'?1: freq==='Trimestriel'?3:12; }
-function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
+function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct, fees){
   const allocInit = s.allocInit || {};
   const allocProg = s.allocProg || {};
 
@@ -331,8 +262,11 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
   const ps=s.progStart? dayjs(s.progStart): start;
   const pe=s.progEnd? dayjs(s.progEnd): allMonths.at(-1);
   const feeIn=(feeInPct||0)/100;
+  const feeMgmtEuro = (fees.mgmtEuro || 0) / 100;
+  const feeMgmtUC = (fees.mgmtUC || 0) / 100;
 
-  let lastEuroReturnYear = -1; // To track when the last annual return was applied
+  let lastEuroReturnYear = -1;
+  let lastMgmtFeeYear = -1;
 
   for(const d of allMonths){
     // 1. Apply returns to existing portfolio
@@ -343,14 +277,24 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
           portfolio[key] *= (1 + annualRate); // Apply full annual return
           lastEuroReturnYear = d.year();
         }
-        // No monthly return for Euro fund in other months
       } else if (rByUC[key]) { // For UCs, apply monthly return
         const monthlyReturn = rByUC[key].get(d.format('YYYY-MM')) ?? 0;
         portfolio[key] *= (1 + monthlyReturn);
       }
     }
+    
+    // 2. Apply annual management fees
+    if (d.month() === 0 && d.year() > start.year() && d.year() !== lastMgmtFeeYear) {
+        portfolio['Fonds_Euro'] *= (1 - feeMgmtEuro);
+        for (const key in portfolio) {
+            if (key !== 'Fonds_Euro') {
+                portfolio[key] *= (1 - feeMgmtUC);
+            }
+        }
+        lastMgmtFeeYear = d.year();
+    }
 
-    // 2. Handle inflows
+    // 3. Handle inflows
     if(d.isSame(dayjs(start).startOf('month'), 'month')) {
       const initInflow = (+s.init||0) * (1-feeIn);
       if (initInflow > 0) {
@@ -465,9 +409,9 @@ function renderIndicesChart(xMonths, { indices, ucs }, chartLabels) {
 
 // Run & handlers
 function updateStateFromUI() {
-    state.api.eodKey = byId('eodKey')?.value || '';
-    state.api.twelveDataKey = byId('twelveDataKey')?.value || '';
-    state.euro.feeIn = +(byId('feeInEuro')?.value || 0); 
+    state.euro.feeIn = +(byId('feeInEuro')?.value || 0);
+    state.fees.mgmtEuro = +(byId('feeMgmtEuro')?.value || 0);
+    state.fees.mgmtUC = +(byId('feeMgmtUC')?.value || 0);
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
       if (!s) return;
@@ -503,19 +447,13 @@ async function runSimulation(){
     updateStateFromUI();
     save();
 
-    const indexProvider = state.api.twelveDataKey ? TwelveDataProvider : EODProvider;
-    const indexApiKey = state.api.twelveDataKey || state.api.eodKey;
-    
-    const cacSymbol = state.api.twelveDataKey ? 'FCHI' : 'FCHI.INDX';
-    const spxSymbol = state.api.twelveDataKey ? 'GSPC' : 'GSPC.INDX';
-
     const dataPromises = [
-      indexProvider.fetchMonthly(cacSymbol, indexApiKey),
-      indexProvider.fetchMonthly(spxSymbol, indexApiKey)
+      EODProvider.fetchMonthly('FCHI.INDX'),
+      EODProvider.fetchMonthly('GSPC.INDX')
     ];
     
     const ucPromises = state.ucs.map(uc => 
-        EODProvider.fetchMonthly(uc.ticker, state.api.eodKey).then(series => {
+        EODProvider.fetchMonthly(uc.ticker).then(series => {
           uc.raw_series = series; // Store raw series for charting
           uc.series = toMonthlyReturns(series); // Store returns for simulation
           return uc;
@@ -556,13 +494,13 @@ async function runSimulation(){
     const euroByYear = Object.fromEntries(state.euro.rates.map(x=>[x.year, +x.rate||0]));
     const res=[];
     for(let i=0;i<3;i++){
-      res.push({label:`Scénario ${i+1}`, data: simulateScenario(state.scenarios[i], allMonths, rByUC, euroByYear, state.euro.feeIn)});
+      res.push({label:`Scénario ${i+1}`, data: simulateScenario(state.scenarios[i], allMonths, rByUC, euroByYear, state.euro.feeIn, state.fees)});
       const rCACmap=new Map(rCAC.map(x=>[x.date.slice(0,7),x.r]));
       const cacAlloc = {'Fonds_Euro':0,'__IDX__CAC40':100};
-      res.push({label:`Scénario ${i+1} (si CAC40)`, data: simulateScenario({...state.scenarios[i], allocInit:cacAlloc, allocProg:cacAlloc}, allMonths, {'__IDX__CAC40': rCACmap}, euroByYear, state.euro.feeIn)});
+      res.push({label:`Scénario ${i+1} (si CAC40)`, data: simulateScenario({...state.scenarios[i], allocInit:cacAlloc, allocProg:cacAlloc}, allMonths, {'__IDX__CAC40': rCACmap}, euroByYear, state.euro.feeIn, state.fees)});
       const rSPXmap=new Map(rSPX.map(x=>[x.date.slice(0,7),x.r]));
       const spxAlloc = {'Fonds_Euro':0,'__IDX__SP500':100};
-      res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn)});
+      res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn, state.fees)});
     }
     const chartLabels = allMonths.map(d=>d.format('MM-YYYY'));
     renderScenarioChart(
@@ -598,9 +536,9 @@ byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0
 
 function buildDefaults(){ if(!Array.isArray(state.euro.rates)) state.euro.rates=[]; if(state.euro.rates.length===0){ const y=dayjs().year(); state.euro.rates=[{year:y-1,rate:2},{year:y,rate:2}]; } }
 function populateUIFromState() {
-    byId('eodKey').value = state.api.eodKey || '';
-    byId('twelveDataKey').value = state.api.twelveDataKey || '';
-    byId('feeInEuro').value = state.euro.feeIn || 0; // Set UI from loaded state
+    byId('feeInEuro').value = state.euro.feeIn || 0;
+    byId('feeMgmtEuro').value = state.fees.mgmtEuro || 0;
+    byId('feeMgmtUC').value = state.fees.mgmtUC || 0;
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
       if (!s) return;
