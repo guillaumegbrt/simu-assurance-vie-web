@@ -42,6 +42,33 @@ const AlphaVantageProvider = {
   }
 };
 
+const TwelveDataProvider = {
+  async fetchMonthly(symbol, key) {
+    if (!key) return null;
+    const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1month&apikey=${key}&outputsize=5000`;
+    try {
+      const r = await fetch(proxyUrl(url));
+      const j = await r.json();
+      console.log('TwelveDataProvider fetchMonthly - Symbol:', symbol, 'Response:', j);
+
+      if (j.code >= 400 || !j.values) {
+        console.error('Twelve Data API Error:', j.message);
+        return null;
+      }
+
+      const series = j.values.map(v => ({
+        date: v.datetime,
+        close: parseFloat(v.close)
+      }));
+      
+      return series.sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+      console.error('Error fetching from Twelve Data:', error);
+      return null;
+    }
+  }
+};
+
 // Parsing helpers (sans regex)
 function splitLines(text){
   return text.split('\n');
@@ -53,7 +80,7 @@ function toMonthlyReturns(series){
 }
 
 // State
-const state={ api:{ eodKey:'691add086f1621.85587257', alphaVantageKey: 'RCVYYB4UC60NM6NO' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
+const state={ api:{ eodKey:'691add086f1621.85587257', alphaVantageKey: 'RCVYYB4UC60NM6NO', twelveDataKey: '' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
 function save(){
   localStorage.setItem('simu-av', JSON.stringify(state));
 }
@@ -281,8 +308,7 @@ function updateSumFor(idx, type){
   }
 }
 
-// CSV upload
-byId('csvUpload')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return; const text=await f.text(); const lines = splitLines(text.trim()); const [h, ...rows] = lines; const headers = h.toLowerCase().split(','); const iD = headers.indexOf('date'), iC=headers.indexOf('close'); const data = rows.map(r=>{ const cols=r.split(','); return {date: cols[iD], close: +cols[iC]}; }).filter(x=>x.date && Number.isFinite(x.close)); if(state.ucs.length===0){ alert('Ajoute d’abord une UC.'); return; } const uc=state.ucs[state.ucs.length-1]; uc.csvData=data; uc.source='upload'; if(!uc.name) uc.name='CSV import'; save(); buildUCTable(); buildAllAlloc(); });
+// CSV uploadyId('csvUpload')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return; const text=await f.text(); const lines = splitLines(text.trim()); const [h, ...rows] = lines; const headers = h.toLowerCase().split(','); const iD = headers.indexOf('date'), iC=headers.indexOf('close'); const data = rows.map(r=>{ const cols=r.split(','); return {date: cols[iD], close: +cols[iC]}; }).filter(x=>x.date && Number.isFinite(x.close)); if(state.ucs.length===0){ alert('Ajoute d’abord une UC.'); return; } const uc=state.ucs[state.ucs.length-1]; uc.csvData=data; uc.source='upload'; if(!uc.name) uc.name='CSV import'; save(); buildUCTable(); buildAllAlloc(); });
 
 function ucKey(uc){ return uc.ticker; }
 
@@ -380,10 +406,67 @@ let chartScenario; function renderScenarioChart(xMonths,{scenarios}, chartLabels
       ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i)%colors.length], backgroundColor:'transparent', tension:.15});
     }
   }); if(chartScenario) chartScenario.destroy(); chartScenario=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'€ (Scénarios)'}} }, plugins:{legend:{position:'top'}} }}); }
-let chartIndices; function renderIndicesChart(xMonths,{indices,ucs}, chartLabels){ const ctx=byId('chart-indices').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[]; indices.forEach((it,i)=>{ if (it.series && it.series.length > 0) { ds.push({label:it.label, data: alignSeries(xMonths, it.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y1', borderColor:colors[i], backgroundColor:'transparent', tension:.15}); } }); ucs.forEach((uc,i)=>{ if (uc.series && uc.series.length > 0) { ds.push({label:uc.name||uc.isin, data: alignSeries(xMonths, uc.series.map(x=>({x:x.date.slice(0,7), y:x.close}))), yAxisID:'y1', borderColor:colors[(i+indices.length)%colors.length], backgroundColor:'transparent', tension:.15}); } }); if(chartIndices) chartIndices.destroy(); chartIndices=new Chart(ctx,{ type:'line', data:{labels:chartLabels, datasets:ds}, options:{ interaction:{mode:'nearest',intersect:false}, scales:{ y1:{type:'linear',position:'left',title:{display:true,text:'Indice (niveau)'}} }, plugins:{legend:{position:'top'}} }}); }
+let chartIndices;
+function renderIndicesChart(xMonths, { indices, ucs }, chartLabels) {
+    const ctx = byId('chart-indices').getContext('2d');
+    if (!ctx) return;
+    const colors = ['#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#22d3ee', '#a78bfa', '#ef4444', '#10b981', '#eab308', '#94a3b8', '#fb7185', '#14b8a6'];
+    const ds = [];
+
+    const createNormalizedDataset = (label, series, color) => {
+        if (!series || series.length === 0) return null;
+        
+        const mappedSeries = series.map(x => ({ x: x.date.slice(0, 7), y: x.close }));
+        const alignedData = alignSeries(xMonths, mappedSeries);
+        
+        const firstValue = alignedData.find(y => y !== null && y > 0);
+        if (firstValue === undefined) return null;
+
+        const normalizedData = alignedData.map(y => (y !== null && firstValue) ? (y / firstValue * 100) : null);
+
+        return {
+            label: label,
+            data: normalizedData,
+            yAxisID: 'y1',
+            borderColor: color,
+            backgroundColor: 'transparent',
+            tension: .15
+        };
+    };
+
+    indices.forEach((it, i) => {
+        const dataset = createNormalizedDataset(it.label, it.series, colors[i]);
+        if (dataset) ds.push(dataset);
+    });
+
+    ucs.forEach((uc, i) => {
+        const dataset = createNormalizedDataset(uc.name || uc.isin, uc.raw_series, colors[(i + indices.length) % colors.length]);
+        if (dataset) ds.push(dataset);
+    });
+
+    if (chartIndices) chartIndices.destroy();
+    chartIndices = new Chart(ctx, {
+        type: 'line',
+        data: { labels: chartLabels, datasets: ds },
+        options: {
+            spanGaps: true, // connect lines over null points
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y1: { 
+                    type: 'linear', 
+                    position: 'left', 
+                    title: { display: true, text: 'Performance (base 100)' }
+                }
+            },
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+}
 
 // Run & handlers
 function updateStateFromUI() {
+    state.api.eodKey = byId('eodKey')?.value || '';
+    state.api.twelveDataKey = byId('twelveDataKey')?.value || '';
     state.euro.feeIn = +(byId('feeInEuro')?.value || 0); 
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
@@ -420,21 +503,28 @@ async function runSimulation(){
     updateStateFromUI();
     save();
 
-    // Fetch all required data
-    console.log('Alpha Vantage API Key:', state.api.alphaVantageKey);
+    const indexProvider = state.api.twelveDataKey ? TwelveDataProvider : EODProvider;
+    const indexApiKey = state.api.twelveDataKey || state.api.eodKey;
+    
+    const cacSymbol = state.api.twelveDataKey ? 'FCHI' : 'FCHI.INDX';
+    const spxSymbol = state.api.twelveDataKey ? 'GSPC' : 'GSPC.INDX';
+
     const dataPromises = [
-      EODProvider.fetchMonthly('FCHI.INDX', state.api.eodKey), // CAC40 (reverted to EOD)
-      EODProvider.fetchMonthly('GSPC.INDX', state.api.eodKey)  // S&P500 (reverted to EOD)
+      indexProvider.fetchMonthly(cacSymbol, indexApiKey),
+      indexProvider.fetchMonthly(spxSymbol, indexApiKey)
     ];
-    for (const uc of state.ucs) {
-      if (!uc.series) { // Fetch only if not already loaded
-        dataPromises.push(EODProvider.fetchMonthly(uc.ticker, state.api.eodKey).then(series => {
-          uc.series = toMonthlyReturns(series);
-          return uc.series;
-        }));
-      }
-    }
+    
+    const ucPromises = state.ucs.map(uc => 
+        EODProvider.fetchMonthly(uc.ticker, state.api.eodKey).then(series => {
+          uc.raw_series = series; // Store raw series for charting
+          uc.series = toMonthlyReturns(series); // Store returns for simulation
+          return uc;
+        })
+    );
+
     const [cac, spx] = await Promise.all(dataPromises);
+    await Promise.all(ucPromises);
+
     console.log('CAC after fetch:', cac);
     console.log('SPX after fetch:', spx);
 
@@ -453,7 +543,7 @@ async function runSimulation(){
     if (spx) allRelevantDates.push(...spx.map(x => x.date));
     // Add dates from UCs
     for (const uc of state.ucs) {
-      if (uc.series) allRelevantDates.push(...uc.series.map(x => x.date));
+      if (uc.raw_series) allRelevantDates.push(...uc.raw_series.map(x => x.date));
     }
     // Add scenario start and end dates
     for (const s of state.scenarios) {
@@ -508,6 +598,8 @@ byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0
 
 function buildDefaults(){ if(!Array.isArray(state.euro.rates)) state.euro.rates=[]; if(state.euro.rates.length===0){ const y=dayjs().year(); state.euro.rates=[{year:y-1,rate:2},{year:y,rate:2}]; } }
 function populateUIFromState() {
+    byId('eodKey').value = state.api.eodKey || '';
+    byId('twelveDataKey').value = state.api.twelveDataKey || '';
     byId('feeInEuro').value = state.euro.feeIn || 0; // Set UI from loaded state
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
@@ -520,13 +612,13 @@ function populateUIFromState() {
       if (init) init.value = s.init || 0;
       
       const prog = box.querySelector('.s-prog');
-      if (prog) s.prog = +prog.value || 0;
+      if (prog) prog.value = s.prog || 0;
 
       const freq = box.querySelector('.s-freq');
-      if (freq) s.freq = freq.value;
+      if (freq) freq.value = s.freq;
 
       const progStart = box.querySelector('.s-prog-start');
-      if (progStart) s.progStart = progStart.value || '';
+      if (progStart) progStart.value = s.progStart || '';
 
       const progEnd = box.querySelector('.s-prog-end');
       if (progEnd) progEnd.value = s.progEnd || '';
