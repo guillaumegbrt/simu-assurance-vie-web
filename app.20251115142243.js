@@ -113,7 +113,7 @@ function load(){
 
 // UI builders
 function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
-function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Année</th><th>Taux annuel net (%)</th><th></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; }
+function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Année</th><th>Taux annuel net (%)</th><th></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; } 
   host.appendChild(tbl); }
 
 function setupUcSelection() {
@@ -371,6 +371,10 @@ function mkMonthAxis(allRelevantDates){
   }
   return months;
 }
+function alignSeries(xMonths, pts){
+  const map=new Map(pts.map(p=>[p.x,p.y]));
+  return xMonths.map(m=> map.get(m.format('YYYY-MM')) ?? null);
+}
 let chartScenario; function renderScenarioChart(xMonths,{scenarios}, chartLabels){ const ctx=byId('chart-scenarios').getContext('2d'); const colors=['#60a5fa','#34d399','#f472b6','#fbbf24','#22d3ee','#a78bfa','#ef4444','#10b981','#eab308','#94a3b8','#fb7185','#14b8a6']; const ds=[];   scenarios.forEach((sc,i)=>{
     if (sc.data && sc.data.length > 0) { // Add check here
       ds.push({label:sc.label, data: alignSeries(xMonths, sc.data.map(x=>({x:x.date.slice(0,7), y:x.value}))), yAxisID:'y1', borderColor:colors[(i)%colors.length], backgroundColor:'transparent', tension:.15});
@@ -380,7 +384,7 @@ let chartIndices; function renderIndicesChart(xMonths,{indices,ucs}, chartLabels
 
 // Run & handlers
 function updateStateFromUI() {
-    state.euro.feeIn = +(byId('feeInEuro')?.value || 0);
+    state.euro.feeIn = +(byId('feeInEuro')?.value || 0); 
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
       if (!s) return;
@@ -516,13 +520,13 @@ function populateUIFromState() {
       if (init) init.value = s.init || 0;
       
       const prog = box.querySelector('.s-prog');
-      if (prog) prog.value = s.prog || 0;
+      if (prog) s.prog = +prog.value || 0;
 
       const freq = box.querySelector('.s-freq');
-      if (freq) freq.value = s.freq;
+      if (freq) s.freq = freq.value;
 
       const progStart = box.querySelector('.s-prog-start');
-      if (progStart) progStart.value = s.progStart || '';
+      if (progStart) s.progStart = progStart.value || '';
 
       const progEnd = box.querySelector('.s-prog-end');
       if (progEnd) progEnd.value = s.progEnd || '';
