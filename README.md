@@ -1,4 +1,4 @@
-# Simulateur AV – build 20251115142243
+# Simulateur AV – V1.28
 
 Ce build renomme les fichiers en **style.20251115142243.css** et **app.20251115142243.js** pour **bypasser tout cache/CDN/proxy**. 
 - UC par **ISIN** uniquement → nom auto (OpenFIGI) + historique (Stooq), fallback CSV.

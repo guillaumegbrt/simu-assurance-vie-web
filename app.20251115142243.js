@@ -1,5 +1,5 @@
 /* global Chart, dayjs */
-console.log('Build V1.27');
+console.log('Build V1.28');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -22,13 +22,22 @@ const EODProvider={ async fetchMonthly(ucIdentifier){ const url=`https://eodhist
 
 const FMPProvider = {
   async fetchMonthly(symbol) {
-    const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${symbol}?apikey=${FMP_API_KEY}`;
+    const url = `https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=${symbol}&apikey=${FMP_API_KEY}`;
     try {
       const r = await fetch(url);
       const j = await r.json();
       console.log('FMPProvider fetch daily - Symbol:', symbol, 'Response:', j);
 
-      const historicalData = j.historical;
+      const isIndex = symbol.startsWith('^');
+      let historicalData;
+
+      if (isIndex) {
+        historicalData = j; // For indexes, the response is the array
+      } else if (j && j.historical) {
+        historicalData = j.historical; // For stocks, it's in the 'historical' property
+      } else {
+        historicalData = []; // Default to empty array if format is unexpected
+      }
 
       if (!Array.isArray(historicalData)) {
         console.error('FMP API Error:', j['Error Message'] || j.error || 'No historical data');
@@ -43,10 +52,13 @@ const FMPProvider = {
       // Data is daily, need to resample to monthly
       const monthlyData = {};
       for (const day of historicalData) {
-        const date = day.date.slice(0, 10);
-        const month = date.slice(0, 7); // YYYY-MM
-        // Keep the last entry for each month
-        monthlyData[month] = { date: date, close: day.close }; 
+        // Ensure day.date and day.close exist and are valid
+        if (day && typeof day.date === 'string' && typeof day.close === 'number') {
+            const date = day.date.slice(0, 10);
+            const month = date.slice(0, 7); // YYYY-MM
+            // Keep the last entry for each month
+            monthlyData[month] = { date: date, close: day.close };
+        }
       }
 
       const series = Object.values(monthlyData);
