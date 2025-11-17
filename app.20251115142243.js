@@ -73,22 +73,43 @@ function load(){
         }
       }
 
-      // Assign properties from loadedState, merging nested objects
-      for (const key in loadedState) {
-        if (key === 'api' || key === 'euro') {
-          // For nested objects, merge properties
-          if (loadedState[key] && typeof loadedState[key] === 'object') {
-            Object.assign(state[key], loadedState[key]);
-          }
-        } else {
-          // For other properties, assign directly
-          state[key] = loadedState[key];
-        }
-      }
+            // Assign properties from loadedState, merging nested objects
 
-    }catch{}
-  }
-}
+            for (const key in loadedState) {
+
+              if (key === 'api' || key === 'euro') {
+
+                // For nested objects, merge properties
+
+                if (loadedState[key] && typeof loadedState[key] === 'object') {
+
+                  Object.assign(state[key], loadedState[key]);
+
+                }
+
+              } else {
+
+                // For other properties, assign directly
+
+                state[key] = loadedState[key];
+
+              }
+
+            }
+
+          }catch{}
+
+        }
+
+        // Ensure alphaVantageKey is always set from the code's default if it's missing
+
+        if (!state.api.alphaVantageKey) {
+
+          state.api.alphaVantageKey = 'RCVYYB4UC60NM6NO';
+
+        }
+
+      }
 
 // UI builders
 function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
