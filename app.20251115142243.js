@@ -24,7 +24,7 @@ function splitLines(text){
 function toMonthlyReturns(series){ const out=[]; for(let i=1;i<series.length;i++){ out.push({date:series[i].date, r: series[i].close/series[i-1].close - 1}); } return out; }
 
 // State
-const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{},euroAmount:5000} ]};
+const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
 function save(){
   localStorage.setItem('simu-av', JSON.stringify(state));
 }
@@ -227,10 +227,6 @@ function ucKey(uc){ return uc.ticker; }
 function monthDiff(a,b){ const da=dayjs(a), db=dayjs(b); return (db.year()-da.year())*12 + (db.month()-da.month()); }
 function scheduleProg(freq){ return freq==='Mensuel'?1: freq==='Trimestriel'?3:12; }
 function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
-  console.log('Simulating Scenario:', s);
-  console.log('s.init:', s.init, 'allocInit:', s.allocInit, 'start:', s.start ? dayjs(s.start).format('YYYY-MM-DD') : 'N/A');
-  console.log('s.prog:', s.prog, 'allocProg:', s.allocProg, 'progStart:', s.progStart ? dayjs(s.progStart).format('YYYY-MM-DD') : 'N/A');
-
   const allocInit = s.allocInit || {};
   const allocProg = s.allocProg || {};
 
@@ -247,37 +243,38 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
   const pe=s.progEnd? dayjs(s.progEnd): allMonths.at(-1);
   const feeIn=(feeInPct||0)/100;
 
+  let lastEuroReturnYear = -1; // To track when the last annual return was applied
+
   for(const d of allMonths){
     // 1. Apply returns to existing portfolio
-    const euroRm = Math.pow(1 + (euroRateByYear[d.year()]??0)/100, 1/12) - 1;
     for (const key in portfolio) {
-      let monthlyReturn = 0;
       if (key === 'Fonds_Euro') {
-        monthlyReturn = euroRm;
-      } else if (rByUC[key]) {
-        monthlyReturn = rByUC[key].get(d.format('YYYY-MM')) ?? 0;
+        if (d.month() === 0 && d.year() !== lastEuroReturnYear) { // If it's January and not applied this year yet
+          const annualRate = (euroRateByYear[d.year()] ?? 0) / 100;
+          portfolio[key] *= (1 + annualRate); // Apply full annual return
+          lastEuroReturnYear = d.year();
+        }
+        // No monthly return for Euro fund in other months
+      } else if (rByUC[key]) { // For UCs, apply monthly return
+        const monthlyReturn = rByUC[key].get(d.format('YYYY-MM')) ?? 0;
+        portfolio[key] *= (1 + monthlyReturn);
       }
-      portfolio[key] *= (1 + monthlyReturn);
     }
 
     // 2. Handle inflows
     if(d.isSame(dayjs(start).startOf('month'), 'month')) {
       const initInflow = (+s.init||0) * (1-feeIn);
       if (initInflow > 0) {
-        console.log('Initial inflow triggered for month:', d.format('YYYY-MM-DD'));
-        console.log('initInflow:', initInflow, 'portfolio before init:', JSON.parse(JSON.stringify(portfolio)));
         for (const key in allocInit) {
           const weight = (allocInit[key] || 0) / 100;
           if(weight > 0) portfolio[key] = (portfolio[key] || 0) + initInflow * weight;
         }
-        console.log('portfolio after init:', JSON.parse(JSON.stringify(portfolio)));
       }
     }
 
     if(d.isAfter(ps.subtract(1,'day')) && d.isBefore(pe.add(1,'day'))){
       const m=monthDiff(ps.startOf('month'), d.startOf('month'));
       if(m%step===0 && (+s.prog||0) > 0) {
-        console.log('Prog inflow triggered for month:', d.format('YYYY-MM-DD'));
         const progInflow = (+s.prog||0) * (1-feeIn);
         for (const key in allocProg) {
           const weight = (allocProg[key] || 0) / 100;
@@ -369,13 +366,8 @@ async function runSimulation(){
       }
     }
     const [cac, spx] = await Promise.all(dataPromises);
-    console.log('Fetched CAC:', cac);
-    console.log('Fetched SPX:', spx);
-    console.log('Fetched UCs (with series):', state.ucs.map(uc => ({ isin: uc.isin, ticker: uc.ticker, series: uc.series ? uc.series.length : 'N/A' })));
 
     const rCAC = toMonthlyReturns(cac), rSPX = toMonthlyReturns(spx);
-    console.log('rCAC (monthly returns):', rCAC);
-    console.log('rSPX (monthly returns):', rSPX);
     const rByUC={};
     for(const uc of state.ucs){
       if(uc.series){
@@ -383,7 +375,6 @@ async function runSimulation(){
         rByUC[ucKey(uc)] = m;
       }
     }
-    console.log('rByUC (monthly returns by UC):', rByUC);
     // Collect all relevant dates
     const allRelevantDates = [];
     // Add dates from CAC, SPX
@@ -412,9 +403,6 @@ async function runSimulation(){
       const spxAlloc = {'Fonds_Euro':0,'__IDX__SP500':100};
       res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn)});
     }
-    console.log('Simulated Scenarios (res):', res);
-    console.log('Data passed to renderChart - indices:', {label:'CAC40', series:cac}, {label:'S&P500', series:spx});
-    console.log('Data passed to renderChart - scenarios:', res);
     const chartLabels = allMonths.map(d=>d.format('MM-YYYY'));
     renderChart(
       allMonths, // Pass Day.js objects
@@ -443,7 +431,6 @@ byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0
 
 function buildDefaults(){ if(!Array.isArray(state.euro.rates)) state.euro.rates=[]; if(state.euro.rates.length===0){ const y=dayjs().year(); state.euro.rates=[{year:y-1,rate:2},{year:y,rate:2}]; } }
 function populateUIFromState() {
-    console.log('populateUIFromState - state.euro.feeIn after load:', state.euro.feeIn); // Keep for now
     byId('feeInEuro').value = state.euro.feeIn || 0; // Set UI from loaded state
     $$('.scenario').forEach((box,idx)=>{
       const s=state.scenarios[idx];
