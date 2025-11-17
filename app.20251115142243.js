@@ -358,8 +358,13 @@ async function runSimulation(){
       }
     }
     const [cac, spx] = await Promise.all(dataPromises);
+    console.log('Fetched CAC:', cac);
+    console.log('Fetched SPX:', spx);
+    console.log('Fetched UCs (with series):', state.ucs.map(uc => ({ isin: uc.isin, ticker: uc.ticker, series: uc.series ? uc.series.length : 'N/A' })));
 
     const rCAC = toMonthlyReturns(cac), rSPX = toMonthlyReturns(spx);
+    console.log('rCAC (monthly returns):', rCAC);
+    console.log('rSPX (monthly returns):', rSPX);
     const rByUC={};
     for(const uc of state.ucs){
       if(uc.series){
@@ -367,6 +372,7 @@ async function runSimulation(){
         rByUC[ucKey(uc)] = m;
       }
     }
+    console.log('rByUC (monthly returns by UC):', rByUC);
     // Collect all relevant dates
     const allRelevantDates = [];
     // Add dates from CAC, SPX
@@ -395,6 +401,9 @@ async function runSimulation(){
       const spxAlloc = {'Fonds_Euro':0,'__IDX__SP500':100};
       res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn)});
     }
+    console.log('Simulated Scenarios (res):', res);
+    console.log('Data passed to renderChart - indices:', {label:'CAC40', series:cac}, {label:'S&P500', series:spx});
+    console.log('Data passed to renderChart - scenarios:', res);
     renderChart(
       allMonths.map(d=>d.format('MM-YYYY')),
       { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], scenarios: res }
