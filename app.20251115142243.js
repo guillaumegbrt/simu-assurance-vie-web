@@ -1,5 +1,4 @@
 /* global Chart, dayjs */
-console.log('app.js loaded and running');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{ dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_customParseFormat); }catch(e){ console.warn('Dayjs plugins', e); }
@@ -23,7 +22,6 @@ function toMonthlyReturns(series){ const out=[]; for(let i=1;i<series.length;i++
 // State
 const state={ api:{ eodKey:'691add086f1621.85587257' }, euro:{ feeIn:0, rates:[] }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{},euroAmount:5000} ]};
 function save(){
-  console.log('Saving state.euro.feeIn:', state.euro.feeIn);
   localStorage.setItem('simu-av', JSON.stringify(state));
 }
 function load(){
@@ -42,7 +40,6 @@ function load(){
         }
       }
       Object.assign(state, loadedState);
-      console.log('Loaded state.euro.feeIn:', state.euro.feeIn);
     }catch{}
   }
 }
@@ -226,9 +223,6 @@ function ucKey(uc){ return uc.ticker; }
 function monthDiff(a,b){ const da=dayjs(a), db=dayjs(b); return (db.year()-da.year())*12 + (db.month()-da.month()); }
 function scheduleProg(freq){ return freq==='Mensuel'?1: freq==='Trimestriel'?3:12; }
 function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
-  console.log('Simulating Scenario:', s);
-  console.log('s.init:', s.init, 'allocInit:', s.allocInit, 'start:', s.start ? dayjs(s.start).format('YYYY-MM-DD') : 'N/A');
-
   const allocInit = s.allocInit || {};
   const allocProg = s.allocProg || {};
 
@@ -262,13 +256,10 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct){
     if(d.isSame(dayjs(start).startOf('month'), 'month')) {
       const initInflow = (+s.init||0) * (1-feeIn);
       if (initInflow > 0) {
-        console.log('Initial inflow triggered for month:', d.format('YYYY-MM-DD'));
-        console.log('initInflow:', initInflow, 'portfolio before init:', JSON.parse(JSON.stringify(portfolio)));
         for (const key in allocInit) {
           const weight = (allocInit[key] || 0) / 100;
           if(weight > 0) portfolio[key] = (portfolio[key] || 0) + initInflow * weight;
         }
-        console.log('portfolio after init:', JSON.parse(JSON.stringify(portfolio)));
       }
     }
 
