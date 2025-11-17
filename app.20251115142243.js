@@ -1,5 +1,4 @@
-/* global Chart, dayjs */
-console.log('Build V1.30');
+console.log('Build V1.32');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -13,10 +12,49 @@ const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(
 // Providers
 const EOD_API_KEY = '691add086f1621.85587257'; // Hardcoded API Key
 const FMP_API_KEY = 'HDGkWI9zBe25ssnAimuYP5FM9ahX0W4G'; // Hardcoded API Key
+const ALPHA_VANTAGE_API_KEY = 'WADOX0OA0S4EARUT'; // Hardcoded API Key
 
 function proxyUrl(url) {
   return url;
 }
+
+const AlphaVantageProvider = {
+  async fetchMonthly(symbol) {
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      console.log('AlphaVantageProvider fetch daily - Symbol:', symbol, 'Response:', j);
+
+      if (j['Error Message'] || j['Note']) {
+        console.error('AlphaVantage API Error:', j['Error Message'] || j['Note']);
+        return null;
+      }
+      
+      const timeSeries = j['Time Series (Daily)'];
+      if (!timeSeries) {
+        console.warn(`AlphaVantage: No data for ${symbol}`);
+        return [];
+      }
+
+      // Data is daily, need to resample to monthly
+      const monthlyData = {};
+      for (const date in timeSeries) {
+        const month = date.slice(0, 7); // YYYY-MM
+        // Keep the last entry for each month (since the API returns data in descending order, the first one we see for a month is the last day)
+        if (!monthlyData[month]) {
+          monthlyData[month] = { date: date, close: parseFloat(timeSeries[date]['5. adjusted close']) };
+        }
+      }
+
+      const series = Object.values(monthlyData);
+      return series.sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+      console.error('Error fetching from AlphaVantage:', error);
+      return null;
+    }
+  }
+};
 
 const EODProvider={ async fetchMonthly(ucIdentifier){ const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${EOD_API_KEY}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); console.log('EODProvider fetchMonthly - Symbol:', ucIdentifier, 'Response:', j); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
 
@@ -141,10 +179,10 @@ function setupUcSelection() {
                 return;
             }
             try {
-                const response = await fetch(`https://financialmodelingprep.com/api/v3/search?query=${searchTerm}&limit=20&apikey=${FMP_API_KEY}`);
+                const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchTerm}&apikey=${ALPHA_VANTAGE_API_KEY}`);
                 if (!response.ok) throw new Error('Failed to search for UCs');
                 const results = await response.json();
-                populateUcDropdown(results);
+                populateUcDropdown(results.bestMatches);
             } catch (error) {
                 console.error('Failed to search UCs:', error);
                 ucList.innerHTML = '<option disabled>Erreur lors de la recherche.</option>';
@@ -166,7 +204,7 @@ function setupUcSelection() {
             return;
         }
         
-        const uc = { symbol, name, ticker: symbol, source: 'fmp', series: null };
+        const uc = { symbol, name, ticker: symbol, source: 'alphavantage', series: null };
         state.ucs.push(uc);
         addUcToSelectedTable(uc);
         buildAllAlloc();
@@ -202,10 +240,13 @@ function populateUcDropdown(results) {
     }
     results.forEach(uc => {
         const option = document.createElement('option');
-        option.value = uc.symbol;
-        option.textContent = `${uc.name} (${uc.symbol}, ${uc.exchangeShortName})`;
-        option.dataset.name = uc.name;
-        option.dataset.symbol = uc.symbol;
+        const symbol = uc['1. symbol'];
+        const name = uc['2. name'];
+        const currency = uc['8. currency'];
+        option.value = symbol;
+        option.textContent = `${name} (${symbol}, ${currency})`;
+        option.dataset.name = name;
+        option.dataset.symbol = symbol;
         ucList.appendChild(option);
     });
 }
@@ -501,8 +542,8 @@ async function runSimulation(){
     save();
 
     const dataPromises = [
-      FMPProvider.fetchMonthly('^FCHI'),
-      FMPProvider.fetchMonthly('^GSPC')
+      AlphaVantageProvider.fetchMonthly('^FCHI'),
+      AlphaVantageProvider.fetchMonthly('^GSPC')
     ];
     
     const ucPromises = state.ucs.map(uc => {
@@ -512,8 +553,7 @@ async function runSimulation(){
             return Promise.resolve(uc);
         }
 
-        const provider = uc.source === 'fmp' ? FMPProvider : EODProvider;
-        return provider.fetchMonthly(uc.ticker).then(series => {
+        return AlphaVantageProvider.fetchMonthly(uc.ticker).then(series => {
           uc.raw_series = series; // Store raw series for charting
           uc.series = toMonthlyReturns(series); // Store returns for simulation
           return uc;

@@ -1,4 +1,7 @@
-# Simulateur AV – V1.30
+# Simulateur AV – V1.31
+
+- Build V1.31 du 2025-11-17:
+  - Changement de l'API pour les indices (CAC40, S&P500) vers Alpha Vantage pour avoir un historique de plus de 5 ans.
 
 Cette version V1.30 correspond aux fichiers **style.20251115142243.css** et **app.20251115142243.js**.
 - UC par **ISIN** uniquement → nom auto (OpenFIGI) + historique (Stooq), fallback CSV.
