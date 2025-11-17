@@ -8,7 +8,7 @@ const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(
 // Providers
 
 function proxyUrl(url) {
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+  return `https://thingproxy.freeboard.io/fetch/${url}`;
 }
 
 const EODProvider={ async fetchMonthly(isin,key){ if(!key) return null; const url=`https://eodhistoricaldata.com/api/eod/${isin}?api_token=${key}&period=m&fmt=json`; const r=await fetch(proxyUrl(url)); const j=await r.json(); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
