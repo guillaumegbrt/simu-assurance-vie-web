@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
-  <title>Simulateur d'assurance vie V1.33</title>
+  <title>Simulateur d'assurance vie V1.34</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="stylesheet" href="style.20251115142243.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isSameOrBefore.js" defer></script>
-  <script>window.__BUILD_ID__ = 'V1.33'; console.log('Build', window.__BUILD_ID__);</script>
+  <script>window.__BUILD_ID__ = 'V1.34'; console.log('Build', window.__BUILD_ID__);</script>
   <script defer src="app.20251115142243.js"></script>
 </head>
 <body>
@@ -51,13 +51,7 @@
 
     <section class="card">
       <h2>Unités de Compte</h2>
-      <p>Recherchez et sélectionnez les Unités de Compte à inclure dans la simulation.</p>
-      <div class="form-group">
-        <label for="uc-search">Rechercher une UC (par nom, ISIN, etc.)</label>
-        <input type="text" id="uc-search" placeholder="Entrez au moins 3 caractères...">
-        <select id="uc-list" size="8" style="width: 100%; margin-top: 5px;"></select>
-      </div>
-      <button id="add-uc-btn" type="button" class="btn" style="margin-top: 10px;">+ Ajouter l'UC sélectionnée</button>
+      <p>Les Unités de Compte sont définies dans le fichier d'étude importé. Vous pouvez les voir et les supprimer de la liste ci-dessous.</p>
       
       <h3 style="margin-top: 20px;">UCs sélectionnées</h3>
       <div class="table-wrap">

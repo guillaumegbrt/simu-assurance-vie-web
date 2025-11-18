@@ -1,4 +1,4 @@
-console.log('Build V1.33');
+console.log('Build V1.34');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -10,99 +10,44 @@ try{
 const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(c.querySelectorAll(s)); const byId=id=>document.getElementById(id);
 
 // Providers
-const EOD_API_KEY = '691add086f1621.85587257'; // Hardcoded API Key
-const FMP_API_KEY = 'HDGkWI9zBe25ssnAimuYP5FM9ahX0W4G'; // Hardcoded API Key
-const ALPHA_VANTAGE_API_KEY = 'WADOX0OA0S4EARUT'; // Hardcoded API Key
+const TIINGO_API_KEY = '5e836ba8b127924b7fe89c72d448fe4610312ec5'; // Hardcoded API Key
 
-function proxyUrl(url) {
-  return url;
-}
-
-const AlphaVantageProvider = {
+const TiingoProvider = {
   async fetchMonthly(symbol) {
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    const startDate = dayjs().subtract(5, 'year').format('YYYY-MM-DD');
+    const url = `https://api.tiingo.com/tiingo/daily/${symbol}/prices?startDate=${startDate}&token=${TIINGO_API_KEY}`;
     try {
       const r = await fetch(url);
+      if (!r.ok) {
+        const errorText = await r.text();
+        throw new Error(`Tiingo API request failed with status ${r.status}: ${errorText}`);
+      }
       const j = await r.json();
-      console.log('AlphaVantageProvider fetch daily - Symbol:', symbol, 'Response:', j);
+      console.log('TiingoProvider fetch daily - Symbol:', symbol, 'Response:', j);
 
-      if (j['Error Message'] || j['Note']) {
-        console.error('AlphaVantage API Error:', j['Error Message'] || j['Note']);
+      if (!Array.isArray(j)) {
+        console.error('Tiingo API Error:', j.detail || 'Response is not an array');
         return null;
       }
       
-      const timeSeries = j['Time Series (Daily)'];
-      if (!timeSeries) {
-        console.warn(`AlphaVantage: No data for ${symbol}`);
+      if (j.length === 0) {
+        console.warn(`Tiingo: No data for ${symbol}`);
         return [];
       }
 
       // Data is daily, need to resample to monthly
       const monthlyData = {};
-      for (const date in timeSeries) {
+      for (const day of j) {
+        const date = day.date.slice(0, 10);
         const month = date.slice(0, 7); // YYYY-MM
-        // Keep the last entry for each month (since the API returns data in descending order, the first one we see for a month is the last day)
-        if (!monthlyData[month]) {
-          monthlyData[month] = { date: date, close: parseFloat(timeSeries[date]['5. adjusted close']) };
-        }
+        // Keep the last entry for each month
+        monthlyData[month] = { date: date, close: day.adjClose };
       }
 
       const series = Object.values(monthlyData);
       return series.sort((a, b) => a.date.localeCompare(b.date));
     } catch (error) {
-      console.error('Error fetching from AlphaVantage:', error);
-      return null;
-    }
-  }
-};
-
-const EODProvider={ async fetchMonthly(ucIdentifier){ const url=`https://eodhistoricaldata.com/api/eod/${ucIdentifier}?api_token=${EOD_API_KEY}&period=m&fmt=json`; const r=await fetch(url); const j=await r.json(); console.log('EODProvider fetchMonthly - Symbol:', ucIdentifier, 'Response:', j); if(!Array.isArray(j)) return null; const series=j.map(x=>({date:x.date, close:x.adjusted_close})).filter(x=>x.date && Number.isFinite(x.close)); return series.sort((a,b)=>a.date.localeCompare(b.date)); }};
-
-const FMPProvider = {
-  async fetchMonthly(symbol) {
-    const url = `https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=${symbol}&apikey=${FMP_API_KEY}`;
-    try {
-      const r = await fetch(url);
-      const j = await r.json();
-      console.log('FMPProvider fetch daily - Symbol:', symbol, 'Response:', j);
-
-      const isIndex = symbol.startsWith('^');
-      let historicalData;
-
-      if (isIndex) {
-        historicalData = j; // For indexes, the response is the array
-      } else if (j && j.historical) {
-        historicalData = j.historical; // For stocks, it's in the 'historical' property
-      } else {
-        historicalData = []; // Default to empty array if format is unexpected
-      }
-
-      if (!Array.isArray(historicalData)) {
-        console.error('FMP API Error:', j['Error Message'] || j.error || 'No historical data');
-        return null;
-      }
-      
-      if (historicalData.length === 0) {
-        console.warn(`FMP: No data for ${symbol}`);
-        return [];
-      }
-
-      // Data is daily, need to resample to monthly
-      const monthlyData = {};
-      for (const day of historicalData) {
-        // Ensure day.date and day.close exist and are valid
-        if (day && typeof day.date === 'string' && typeof day.close === 'number') {
-            const date = day.date.slice(0, 10);
-            const month = date.slice(0, 7); // YYYY-MM
-            // Keep the last entry for each month
-            monthlyData[month] = { date: date, close: day.close };
-        }
-      }
-
-      const series = Object.values(monthlyData);
-      return series.sort((a, b) => a.date.localeCompare(b.date));
-    } catch (error) {
-      console.error('Error fetching from FMP:', error);
+      console.error(`Error fetching from Tiingo for symbol ${symbol}:`, error);
       return null;
     }
   }
@@ -163,94 +108,6 @@ function debounce(func, delay) { let timeout; return function(...args) { const c
 function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const wrap = document.createElement('div'); wrap.className = 'table-wrap'; const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Année</th><th>Taux annuel net (%)</th><th></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; } 
   wrap.appendChild(tbl); host.appendChild(wrap); }
 
-function setupUcSelection() {
-    const ucSearch = byId('uc-search');
-    const ucList = byId('uc-list');
-    const addUcBtn = byId('add-uc-btn');
-    const selectedUcList = byId('selected-uc-list');
-    let searchTimeout;
-
-    ucSearch.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(async () => {
-            const searchTerm = ucSearch.value;
-            if (searchTerm.length < 3) {
-                ucList.innerHTML = '<option disabled>Veuillez entrer au moins 3 caractères.</option>';
-                return;
-            }
-            try {
-                const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchTerm}&apikey=${ALPHA_VANTAGE_API_KEY}`);
-                if (!response.ok) throw new Error('Failed to search for UCs');
-                const results = await response.json();
-                populateUcDropdown(results.bestMatches);
-            } catch (error) {
-                console.error('Failed to search UCs:', error);
-                ucList.innerHTML = '<option disabled>Erreur lors de la recherche.</option>';
-            }
-        }, 500);
-    });
-
-    addUcBtn.addEventListener('click', () => {
-        const selectedOption = ucList.options[ucList.selectedIndex];
-        if (!selectedOption) return;
-
-        const { name, symbol } = selectedOption.dataset;
-        if (!symbol) {
-            alert("Cette sélection n'a pas de symbole, elle ne peut pas être ajoutée.");
-            return;
-        }
-        if (state.ucs.find(uc => uc.symbol === symbol)) {
-            alert('Cette UC est déjà dans la liste.');
-            return;
-        }
-        
-        const uc = { symbol, name, ticker: symbol, source: 'alphavantage', series: null };
-        state.ucs.push(uc);
-        addUcToSelectedTable(uc);
-        buildAllAlloc();
-        save();
-    });
-
-    selectedUcList.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-uc')) {
-            const row = e.target.closest('tr');
-            const symbol = row.dataset.symbol;
-            const ucToRemove = state.ucs.find(uc => uc.symbol === symbol);
-            if (ucToRemove) {
-                const key = ucKey(ucToRemove);
-                state.scenarios.forEach(s => {
-                    delete s.allocInit[key];
-                    delete s.allocProg[key];
-                });
-            }
-            state.ucs = state.ucs.filter(uc => uc.symbol !== symbol);
-            row.remove();
-            buildAllAlloc();
-            save();
-        }
-    });
-}
-
-function populateUcDropdown(results) {
-    const ucList = byId('uc-list');
-    ucList.innerHTML = '';
-    if (!results || results.length === 0) {
-        ucList.innerHTML = '<option disabled>Aucun résultat trouvé.</option>';
-        return;
-    }
-    results.forEach(uc => {
-        const option = document.createElement('option');
-        const symbol = uc['1. symbol'];
-        const name = uc['2. name'];
-        const currency = uc['8. currency'];
-        option.value = symbol;
-        option.textContent = `${name} (${symbol}, ${currency})`;
-        option.dataset.name = name;
-        option.dataset.symbol = symbol;
-        ucList.appendChild(option);
-    });
-}
-
 function addUcToSelectedTable(uc) {
     const selectedUcList = byId('selected-uc-list');
     const tr = document.createElement('tr');
@@ -260,6 +117,23 @@ function addUcToSelectedTable(uc) {
         <td><button class="remove-uc" type="button">×</button></td>
     `;
     selectedUcList.appendChild(tr);
+    
+    tr.querySelector('.remove-uc').addEventListener('click', (e) => {
+        const row = e.target.closest('tr');
+        const symbol = row.dataset.symbol;
+        const ucToRemove = state.ucs.find(uc => uc.symbol === symbol);
+        if (ucToRemove) {
+            const key = ucKey(ucToRemove);
+            state.scenarios.forEach(s => {
+                delete s.allocInit[key];
+                delete s.allocProg[key];
+            });
+        }
+        state.ucs = state.ucs.filter(uc => uc.symbol !== symbol);
+        row.remove();
+        buildAllAlloc();
+        save();
+    });
 }
 
 function buildSelectedUcTable() {
@@ -542,8 +416,8 @@ async function runSimulation(){
     save();
 
     const dataPromises = [
-      AlphaVantageProvider.fetchMonthly('C40.PA'),
-      AlphaVantageProvider.fetchMonthly('SPY')
+      TiingoProvider.fetchMonthly('^FCHI'),
+      TiingoProvider.fetchMonthly('^GSPC')
     ];
     
     const ucPromises = state.ucs.map(uc => {
@@ -553,7 +427,7 @@ async function runSimulation(){
             return Promise.resolve(uc);
         }
 
-        return AlphaVantageProvider.fetchMonthly(uc.ticker).then(series => {
+        return TiingoProvider.fetchMonthly(uc.ticker).then(series => {
           uc.raw_series = series; // Store raw series for charting
           uc.series = toMonthlyReturns(series); // Store returns for simulation
           return uc;
@@ -618,7 +492,7 @@ async function runSimulation(){
 }
 
 function attachHandlers(){ byId('addRate')?.addEventListener('click', ()=>{ state.euro.rates.push({year: dayjs().year(), rate:2}); buildEuroRates(); save(); });
-setupUcSelection();
+// UC Search functionality removed as it depended on a specific API.
 byId('run')?.addEventListener('click', runSimulation);
 byId('export')?.addEventListener('click', ()=>{ updateStateFromUI(); const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`etude_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); });
 byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return;
