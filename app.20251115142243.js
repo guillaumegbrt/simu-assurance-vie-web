@@ -1,4 +1,4 @@
-console.log('Build V1.34');
+console.log('Build V1.36');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -9,49 +9,141 @@ try{
 
 const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(c.querySelectorAll(s)); const byId=id=>document.getElementById(id);
 
-// Providers
-const TIINGO_API_KEY = '5e836ba8b127924b7fe89c72d448fe4610312ec5'; // Hardcoded API Key
+// --- Providers ---
+
+/**
+ * Récupère les données financières historiques depuis l'API proxy sur Vercel.
+ * @param {string} ticker Le symbole du titre (ex: '^FCHI').
+ * @param {number} startDate Timestamp Unix en secondes pour la date de début.
+ * @param {number} endDate Timestamp Unix en secondes pour la date de fin.
+ * @returns {Promise<string>} Une promesse qui se résout avec la réponse JSON sous forme de chaîne de caractères.
+ */
+async function getFinancialData(ticker, startDate, endDate) {
+  // Construire l'URL de l'API avec les paramètres fournis.
+  const url = `https://my-yahoo-proxy.vercel.app/api/historical?ticker=${ticker}&period1=${startDate}&period2=${endDate}`;
+  console.log(`Fetching data from Vercel proxy: ${url}`);
+
+  try {
+    // Effectuer une requête GET vers l'URL construite.
+    const response = await fetch(url);
+
+    // Vérifier si la requête a réussi.
+    if (!response.ok) {
+      throw new Error(`Erreur de l'API Vercel avec le statut ${response.status}`);
+    }
+
+    // Récupérer la réponse sous forme de chaîne de caractères.
+    const jsonString = await response.text();
+    
+    // Retourner la chaîne de caractères contenant le JSON.
+    return jsonString;
+  } catch (error) {
+    // Gérer les exceptions (ex: problème de réseau, erreur de l'API).
+    console.error(`Erreur lors de la récupération des données pour ${ticker}:`, error);
+    // Propager l'erreur pour que l'appelant puisse la gérer.
+    throw error;
+  }
+}
+
+async function parseYahooData(jsonString) {
+    try {
+        const data = JSON.parse(jsonString);
+        const chart = data.chart;
+        if (chart.error) {
+            console.error('Yahoo API Error:', chart.error.code, chart.error.description);
+            return [];
+        }
+        const result = chart.result[0];
+        const timestamps = result.timestamp;
+        const quotes = result.indicators.quote[0];
+
+        if (!timestamps) return [];
+
+        return timestamps.map((ts, i) => ({
+            date: dayjs.unix(ts).format('YYYY-MM-DD'),
+            close: quotes.close[i]
+        })).filter(d => d.close !== null).sort((a, b) => a.date.localeCompare(b.date));
+
+    } catch (e) {
+        console.error("Failed to parse Yahoo data", e);
+        return [];
+    }
+}
+
+
+const TIINGO_API_KEY = '5e836ba8b127924b7fe89c72d448fe4610312ec5';
+const EOD_API_KEY = 'demo';
 
 const TiingoProvider = {
-  async fetchMonthly(symbol) {
-    const startDate = dayjs().subtract(5, 'year').format('YYYY-MM-DD');
-    const url = `https://api.tiingo.com/tiingo/daily/${symbol}/prices?startDate=${startDate}&token=${TIINGO_API_KEY}`;
-    try {
-      const r = await fetch(url);
-      if (!r.ok) {
-        const errorText = await r.text();
-        throw new Error(`Tiingo API request failed with status ${r.status}: ${errorText}`);
-      }
-      const j = await r.json();
-      console.log('TiingoProvider fetch daily - Symbol:', symbol, 'Response:', j);
-
-      if (!Array.isArray(j)) {
-        console.error('Tiingo API Error:', j.detail || 'Response is not an array');
-        return null;
-      }
-      
-      if (j.length === 0) {
-        console.warn(`Tiingo: No data for ${symbol}`);
-        return [];
-      }
-
-      // Data is daily, need to resample to monthly
-      const monthlyData = {};
-      for (const day of j) {
-        const date = day.date.slice(0, 10);
-        const month = date.slice(0, 7); // YYYY-MM
-        // Keep the last entry for each month
-        monthlyData[month] = { date: date, close: day.adjClose };
-      }
-
-      const series = Object.values(monthlyData);
-      return series.sort((a, b) => a.date.localeCompare(b.date));
-    } catch (error) {
-      console.error(`Error fetching from Tiingo for symbol ${symbol}:`, error);
-      return null;
-    }
+  name: 'Tiingo',
+  async fetch(symbol) {
+    const startDate = dayjs().subtract(10, 'year').format('YYYY-MM-DD');
+    // Tiingo uses tickers without exchange, e.g., 'GOOGL' not 'GOOGL.US'
+    const cleanSymbol = symbol.split('.')[0];
+    const url = `https://api.tiingo.com/tiingo/daily/${cleanSymbol}/prices?startDate=${startDate}&token=${TIINGO_API_KEY}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Tiingo API request failed with status ${r.status}`);
+    const j = await r.json();
+    if (!Array.isArray(j) || j.length === 0) return [];
+    return j.map(d => ({ date: d.date.slice(0, 10), close: d.adjClose })).sort((a, b) => a.date.localeCompare(b.date));
   }
 };
+
+const EODProvider = {
+  name: 'EOD',
+  async fetch(symbol) {
+    const url = `https://eodhistoricaldata.com/api/eod/${symbol}?api_token=${EOD_API_KEY}&fmt=json&period=d`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`EOD API request failed`);
+    const j = await r.json();
+    if (!Array.isArray(j) || j.length === 0) return [];
+    return j.map(d => ({ date: d.date, close: d.adjusted_close })).sort((a, b) => a.date.localeCompare(b.date));
+  }
+};
+
+async function fetchIndexData(symbol) {
+    const endDate = dayjs().unix();
+    const startDate = dayjs().subtract(20, 'year').unix();
+    try {
+        console.log(`Fetching index ${symbol} via Vercel Proxy`);
+        const jsonString = await getFinancialData(symbol, startDate, endDate);
+        const data = await parseYahooData(jsonString);
+        console.log(`Successfully fetched ${data.length} points for ${symbol} from Vercel proxy.`);
+        return data;
+    } catch (e) {
+        console.error(`Vercel proxy failed for ${symbol}, falling back to other providers.`, e);
+        // Fallback to other providers if Vercel proxy fails
+        return fetchBestUCData(symbol);
+    }
+}
+
+async function fetchBestUCData(symbol) {
+    const providers = [TiingoProvider, EODProvider];
+    console.log(`Fetching best UC data for ${symbol} from ${providers.length} providers...`);
+
+    const promises = providers.map(p => p.fetch(symbol).catch(e => {
+        console.warn(`Provider ${p.name} failed for ${symbol}:`, e.message);
+        return null; // Return null on failure
+    }));
+
+    const results = await Promise.all(promises);
+
+    let bestResult = [];
+    let bestProvider = 'none';
+
+    results.forEach((result, index) => {
+        if (result && result.length > bestResult.length) {
+            bestResult = result;
+            bestProvider = providers[index].name;
+        }
+    });
+
+    console.log(`Best data for ${symbol} is from ${bestProvider} with ${bestResult.length} points.`);
+    return bestResult;
+}
+
+// --- End Providers ---
+
 
 // Parsing helpers (sans regex)
 function splitLines(text){
@@ -111,17 +203,17 @@ function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; cons
 function addUcToSelectedTable(uc) {
     const selectedUcList = byId('selected-uc-list');
     const tr = document.createElement('tr');
-    tr.dataset.symbol = uc.symbol;
+    tr.dataset.ticker = uc.ticker;
     tr.innerHTML = `
-        <td>${uc.name} (${uc.symbol})</td>
+        <td>${uc.name} (${uc.ticker})</td>
         <td><button class="remove-uc" type="button">×</button></td>
     `;
     selectedUcList.appendChild(tr);
     
     tr.querySelector('.remove-uc').addEventListener('click', (e) => {
         const row = e.target.closest('tr');
-        const symbol = row.dataset.symbol;
-        const ucToRemove = state.ucs.find(uc => uc.symbol === symbol);
+        const ticker = row.dataset.ticker;
+        const ucToRemove = state.ucs.find(uc => uc.ticker === ticker);
         if (ucToRemove) {
             const key = ucKey(ucToRemove);
             state.scenarios.forEach(s => {
@@ -129,7 +221,7 @@ function addUcToSelectedTable(uc) {
                 delete s.allocProg[key];
             });
         }
-        state.ucs = state.ucs.filter(uc => uc.symbol !== symbol);
+        state.ucs = state.ucs.filter(uc => uc.ticker !== ticker);
         row.remove();
         buildAllAlloc();
         save();
@@ -155,7 +247,7 @@ function buildAllocForScenario(idx){
     for(const uc of state.ucs){
       const key=ucKey(uc);
       if(allocInit[key]===undefined) allocInit[key]=0;
-      const label=uc.name||uc.symbol||'UC';
+      const label=uc.name||uc.ticker||'UC';
       hostInit.appendChild(makeAllocRow(idx, key, label, allocInit[key], 'Init'));
     }
   }
@@ -170,7 +262,7 @@ function buildAllocForScenario(idx){
     for(const uc of state.ucs){
       const key=ucKey(uc);
       if(allocProg[key]===undefined) allocProg[key]=0;
-      const label=uc.name||uc.symbol||'UC';
+      const label=uc.name||uc.ticker||'UC';
       hostProg.appendChild(makeAllocRow(idx, key, label, allocProg[key], 'Prog'));
     }
   }
@@ -205,9 +297,6 @@ function updateSumFor(idx, type){
     }
   }
 }
-
-// CSV upload
-byId('csvUpload')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return; const text=await f.text(); const lines = splitLines(text.trim()); const [h, ...rows] = lines; const headers = h.toLowerCase().split(','); const iD = headers.indexOf('date'), iC=headers.indexOf('close'); const data = rows.map(r=>{ const cols=r.split(','); return {date: cols[iD], close: +cols[iC]}; }).filter(x=>x.date && Number.isFinite(x.close)); if(state.ucs.length===0){ alert('Ajoute d’abord une UC.'); return; } const uc=state.ucs[state.ucs.length-1]; uc.csvData=data; uc.source='upload'; if(!uc.name) uc.name='CSV import'; save(); buildUCTable(); buildAllAlloc(); });
 
 function ucKey(uc){ return uc.ticker; }
 
@@ -292,14 +381,13 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct, fees){
 function mkMonthAxis(allRelevantDates){
   if (allRelevantDates.length === 0) return [];
 
-  let earliest = dayjs(allRelevantDates[0]);
-  let latest = dayjs(allRelevantDates[0]);
+  // Nouvelle logique : trouver la date la plus lointaine (minimum)
+  const earliest = allRelevantDates.reduce((min, current) => {
+      const currentDate = dayjs(current);
+      return currentDate.isBefore(min) ? currentDate : min;
+  }, dayjs(allRelevantDates[0]));
 
-  for (const dateStr of allRelevantDates) {
-    const d = dayjs(dateStr);
-    if (d.isBefore(earliest)) earliest = d;
-    if (d.isAfter(latest)) latest = d;
-  }
+  let latest = dayjs(); // Date de fin est aujourd'hui par défaut
 
   const months = [];
   let currentMonth = earliest.startOf('month');
@@ -416,18 +504,12 @@ async function runSimulation(){
     save();
 
     const dataPromises = [
-      TiingoProvider.fetchMonthly('^FCHI'),
-      TiingoProvider.fetchMonthly('^GSPC')
+      fetchIndexData('^FCHI'), // CAC
+      fetchIndexData('^GSPC')  // S&P 500
     ];
     
     const ucPromises = state.ucs.map(uc => {
-        if (uc.source === 'upload') {
-            uc.raw_series = uc.csvData || [];
-            uc.series = toMonthlyReturns(uc.raw_series);
-            return Promise.resolve(uc);
-        }
-
-        return TiingoProvider.fetchMonthly(uc.ticker).then(series => {
+        return fetchBestUCData(uc.ticker).then(series => {
           uc.raw_series = series; // Store raw series for charting
           uc.series = toMonthlyReturns(series); // Store returns for simulation
           return uc;
@@ -448,19 +530,15 @@ async function runSimulation(){
         rByUC[ucKey(uc)] = m;
       }
     }
-    // Collect all relevant dates
+    // Collect all relevant dates to find the earliest starting point
     const allRelevantDates = [];
-    // Add dates from CAC, SPX
-    if (cac) allRelevantDates.push(...cac.map(x => x.date));
-    if (spx) allRelevantDates.push(...spx.map(x => x.date));
-    // Add dates from UCs
+    if (cac && cac.length > 0) allRelevantDates.push(cac[0].date);
+    if (spx && spx.length > 0) allRelevantDates.push(spx[0].date);
     for (const uc of state.ucs) {
-      if (uc.raw_series) allRelevantDates.push(...uc.raw_series.map(x => x.date));
+      if (uc.raw_series && uc.raw_series.length > 0) allRelevantDates.push(uc.raw_series[0].date);
     }
-    // Add scenario start and end dates
     for (const s of state.scenarios) {
       if (s.start) allRelevantDates.push(s.start);
-      if (s.progEnd) allRelevantDates.push(s.progEnd);
     }
 
     let allMonths = mkMonthAxis(allRelevantDates);
@@ -491,11 +569,50 @@ async function runSimulation(){
   }catch(e){ console.error('Run failed', e); }
 }
 
+async function searchUC(query) {
+    if (!query || query.length < 3) {
+        byId('ucSearchResults').innerHTML = '';
+        return;
+    }
+    const url = `https://eodhistoricaldata.com/api/search/${query}?api_token=${EOD_API_KEY}`;
+    try {
+        const response = await fetch(url);
+        const results = await response.json();
+        const resultsDiv = byId('ucSearchResults');
+        resultsDiv.innerHTML = '';
+        if (results.length > 0) {
+            results.slice(0, 10).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.textContent = `${item.Name} (${item.Code}) [${item.Exchange}]`;
+                div.onclick = () => {
+                    const newUc = { name: item.Name, ticker: `${item.Code}.${item.Exchange}` };
+                    if (!state.ucs.some(uc => uc.ticker === newUc.ticker)) {
+                        state.ucs.push(newUc);
+                        addUcToSelectedTable(newUc);
+                        buildAllAlloc();
+                        save();
+                    }
+                    byId('ucSearch').value = '';
+                    resultsDiv.innerHTML = '';
+                };
+                resultsDiv.appendChild(div);
+            });
+        } else {
+            resultsDiv.textContent = 'Aucun résultat';
+        }
+    } catch (error) {
+        console.error('Error searching UCs:', error);
+        byId('ucSearchResults').textContent = 'Erreur de recherche';
+    }
+}
+
+
 function attachHandlers(){ byId('addRate')?.addEventListener('click', ()=>{ state.euro.rates.push({year: dayjs().year(), rate:2}); buildEuroRates(); save(); });
-// UC Search functionality removed as it depended on a specific API.
-byId('run')?.addEventListener('click', runSimulation);
-byId('export')?.addEventListener('click', ()=>{ updateStateFromUI(); const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`etude_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); });
-byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return;
+  byId('ucSearch')?.addEventListener('input', debounce(e => searchUC(e.target.value), 300));
+  byId('run')?.addEventListener('click', runSimulation);
+  byId('export')?.addEventListener('click', ()=>{ updateStateFromUI(); const data=JSON.stringify(state,null,2); const blob=new Blob([data],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`etude_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); });
+  byId('import')?.addEventListener('change', async e=>{ const f=e.target.files?.[0]; if(!f) return;
   try{
     const text=await f.text();
     const obj=JSON.parse(text);

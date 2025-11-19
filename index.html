@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
-  <title>Simulateur d'assurance vie V1.34</title>
+  <title>Simulateur d'assurance vie V1.36</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="stylesheet" href="style.20251115142243.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isSameOrBefore.js" defer></script>
-  <script>window.__BUILD_ID__ = 'V1.34'; console.log('Build', window.__BUILD_ID__);</script>
+  <script>window.__BUILD_ID__ = 'V1.36'; console.log('Build', window.__BUILD_ID__);</script>
   <script defer src="app.20251115142243.js"></script>
 </head>
 <body>
@@ -49,16 +49,21 @@
       </fieldset>
     </section>
 
-    <section class="card">
-      <h2>Unités de Compte</h2>
-      <p>Les Unités de Compte sont définies dans le fichier d'étude importé. Vous pouvez les voir et les supprimer de la liste ci-dessous.</p>
+      <h2>Unités de Compte (UC)</h2>
+      <fieldset>
+        <legend>Rechercher et ajouter une UC</legend>
+        <label>Rechercher par nom ou ISIN/Ticker
+          <input type="search" id="ucSearch" placeholder="Ex: Amundi MSCI World..."/>
+        </label>
+        <div id="ucSearchResults"></div>
+      </fieldset>
       
-      <h3 style="margin-top: 20px;">UCs sélectionnées</h3>
+      <h3 style="margin-top: 20px;">UCs sélectionnées pour la simulation</h3>
       <div class="table-wrap">
         <table id="selected-uc-table">
           <thead>
             <tr>
-              <th>Nom (ISIN)</th>
+              <th>Nom (Ticker)</th>
               <th>Actions</th>
             </tr>
           </thead>
