@@ -1,5 +1,10 @@
 # Simulateur AV
 
+## Version 1.42
+- **Correction de la récupération des données UC**: La logique de récupération des données pour les Unités de Compte (UC) a été corrigée pour utiliser directement le ticker fourni par l'API de recherche Yahoo Finance, ce qui résout les erreurs 404 (Not Found) pour certains fonds.
+- **Correction du style**: La largeur du tableau des taux du Fonds Euro a été ajustée pour qu'il ne dépasse plus de son conteneur, améliorant ainsi la mise en page.
+- **Mise à jour de version**: Le numéro de build est passé à V1.42.
+
 ## Version 1.41
 - **Correction de la recherche d'UCs**: Le fournisseur de recherche pour les Unités de Compte (UCs) a été basculé de EOD à Yahoo Finance pour résoudre une erreur 403 (Forbidden) qui empêchait la recherche de fonctionner correctement.
 - **Mise à jour de version**: Le numéro de build est passé à V1.41.
