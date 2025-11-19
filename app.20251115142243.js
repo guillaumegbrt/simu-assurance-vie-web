@@ -1,4 +1,4 @@
-console.log('Build V1.38');
+console.log('Build V1.40');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -68,24 +68,9 @@ async function fetchIndexData(symbol) {
 }
 
 async function fetchBestUCData(symbol) {
-    console.log(`Fetching best UC data for ${symbol} from providers via proxy...`);
-    // Try providers in parallel
-    const promises = [
-      fetchData('tiingo', symbol, { startDate: dayjs().subtract(10, 'year').format('YYYY-MM-DD') }),
-      fetchData('eod', symbol)
-    ];
-
-    const results = await Promise.all(promises);
-
-    let bestResult = [];
-    results.forEach(result => {
-        if (result && result.length > bestResult.length) {
-            bestResult = result;
-        }
-    });
-
-    console.log(`Best data for ${symbol} has ${bestResult.length} points.`);
-    return bestResult;
+    console.log(`Fetching UC data for ${symbol} from Yahoo via proxy...`);
+    // Use Yahoo provider for UCs as well
+    return await fetchIndexData(symbol);
 }
 
 // --- End Providers ---
@@ -462,13 +447,13 @@ async function runSimulation(){
         })
     });
 
-    const [cac, spx] = await Promise.all(dataPromises);
+    const [cacData, spxData] = await Promise.all(dataPromises);
     await Promise.all(ucPromises);
 
-    console.log('CAC after fetch:', cac);
-    console.log('SPX after fetch:', spx);
+    console.log('CAC after fetch:', cacData);
+    console.log('SPX after fetch:', spxData);
 
-    const rCAC = toMonthlyReturns(cac), rSPX = toMonthlyReturns(spx);
+    const rCAC = toMonthlyReturns(cacData), rSPX = toMonthlyReturns(spxData);
     const rByUC={};
     for(const uc of state.ucs){
       if(uc.series){
@@ -477,52 +462,40 @@ async function runSimulation(){
       }
     }
     
-    // --- Date Axes Calculation ---
-    // Axe pour les indices et UCs (historique complet)
-    const allHistoricalDates = [];
-    if (cac && cac.length > 0) allHistoricalDates.push(cac[0].date);
-    if (spx && spx.length > 0) allHistoricalDates.push(spx[0].date);
-    for (const uc of state.ucs) {
-      if (uc.raw_series && uc.raw_series.length > 0) allHistoricalDates.push(uc.raw_series[0].date);
-    }
-    // Assurer qu'il y a au moins une date pour éviter les erreurs
-    if (allHistoricalDates.length === 0) allHistoricalDates.push(dayjs().format('YYYY-MM-DD'));
-    const allMonthsIndices = mkMonthAxis(allHistoricalDates);
-
-    // Axe pour les scénarios (commence à la date de simulation la plus précoce)
+    // --- Date Axis Calculation ---
+    // Axe de temps unifié, basé sur la date de simulation la plus précoce
     const scenarioStartDates = state.scenarios
       .map(s => s.start)
       .filter(Boolean); // Filtre les dates vides
       
     if (scenarioStartDates.length === 0) scenarioStartDates.push(dayjs().format('YYYY-MM-DD'));
-    const allMonthsScenarios = mkMonthAxis(scenarioStartDates);
-    // --- End Date Axes Calculation ---
-
+    const allMonths = mkMonthAxis(scenarioStartDates);
+    // --- End Date Axis Calculation ---
 
     const euroByYear = Object.fromEntries(state.euro.rates.map(x=>[x.year, +x.rate||0]));
     const res=[];
     for(let i=0;i<3;i++){
-      res.push({label:`Scénario ${i+1}`, data: simulateScenario(state.scenarios[i], allMonthsScenarios, rByUC, euroByYear, state.euro.feeIn, state.fees)});
+      res.push({label:`Scénario ${i+1}`, data: simulateScenario(state.scenarios[i], allMonths, rByUC, euroByYear, state.euro.feeIn, state.fees)});
       const rCACmap=new Map(rCAC.map(x=>[x.date.slice(0,7),x.r]));
       const cacAlloc = {'Fonds_Euro':0,'__IDX__CAC40':100};
-      res.push({label:`Scénario ${i+1} (si CAC40)`, data: simulateScenario({...state.scenarios[i], allocInit:cacAlloc, allocProg:cacAlloc}, allMonthsScenarios, {'__IDX__CAC40': rCACmap}, euroByYear, state.euro.feeIn, state.fees)});
+      res.push({label:`Scénario ${i+1} (si CAC40)`, data: simulateScenario({...state.scenarios[i], allocInit:cacAlloc, allocProg:cacAlloc}, allMonths, {'__IDX__CAC40': rCACmap}, euroByYear, state.euro.feeIn, state.fees)});
       const rSPXmap=new Map(rSPX.map(x=>[x.date.slice(0,7),x.r]));
       const spxAlloc = {'Fonds_Euro':0,'__IDX__SP500':100};
-      res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonthsScenarios, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn, state.fees)});
+      res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn, state.fees)});
     }
     
-    const scenarioChartLabels = allMonthsScenarios.map(d=>d.format('MM-YYYY'));
+    const chartLabels = allMonths.map(d=>d.format('MM-YYYY'));
+    
     renderScenarioChart(
-      allMonthsScenarios,
+      allMonths,
       { scenarios: res },
-      scenarioChartLabels
+      chartLabels
     );
 
-    const indicesChartLabels = allMonthsIndices.map(d=>d.format('MM-YYYY'));
     renderIndicesChart(
-      allMonthsIndices,
-      { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], ucs: state.ucs },
-      indicesChartLabels
+      allMonths,
+      { indices:[ {label:'CAC40', series:cacData}, {label:'S&P500', series:spxData} ], ucs: state.ucs },
+      chartLabels
     );
   }catch(e){ console.error('Run failed', e); }
 }
