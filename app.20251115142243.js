@@ -1,4 +1,4 @@
-console.log('Build V1.36');
+console.log('Build V1.37');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -11,134 +11,80 @@ const $=(s,c=document)=>c.querySelector(s); const $$=(s,c=document)=>Array.from(
 
 // --- Providers ---
 
-/**
- * Récupère les données financières historiques depuis l'API proxy sur Vercel.
- * @param {string} ticker Le symbole du titre (ex: '^FCHI').
- * @param {number} startDate Timestamp Unix en secondes pour la date de début.
- * @param {number} endDate Timestamp Unix en secondes pour la date de fin.
- * @returns {Promise<string>} Une promesse qui se résout avec la réponse JSON sous forme de chaîne de caractères.
- */
-async function getFinancialData(ticker, startDate, endDate) {
-  // Construire l'URL de l'API avec les paramètres fournis.
-  const url = `https://my-yahoo-proxy.vercel.app/api/historical?ticker=${ticker}&period1=${startDate}&period2=${endDate}`;
-  console.log(`Fetching data from Vercel proxy: ${url}`);
+async function fetchData(provider, ticker, params = {}) {
+  const queryParams = new URLSearchParams({ provider, ticker, ...params });
+  const url = `https://my-yahoo-proxy.vercel.app/api/historical?${queryParams.toString()}`;
+  
+  console.log(`Fetching via proxy: provider=${provider}, ticker=${ticker}`);
 
   try {
-    // Effectuer une requête GET vers l'URL construite.
-    const response = await fetch(url);
-
-    // Vérifier si la requête a réussi.
-    if (!response.ok) {
-      throw new Error(`Erreur de l'API Vercel avec le statut ${response.status}`);
+    const r = await fetch(url);
+    if (!r.ok) {
+      throw new Error(`Proxy request failed for ${provider} with status ${r.status}`);
     }
+    const j = await r.json();
 
-    // Récupérer la réponse sous forme de chaîne de caractères.
-    const jsonString = await response.text();
-    
-    // Retourner la chaîne de caractères contenant le JSON.
-    return jsonString;
-  } catch (error) {
-    // Gérer les exceptions (ex: problème de réseau, erreur de l'API).
-    console.error(`Erreur lors de la récupération des données pour ${ticker}:`, error);
-    // Propager l'erreur pour que l'appelant puisse la gérer.
-    throw error;
-  }
-}
-
-async function parseYahooData(jsonString) {
-    try {
-        const data = JSON.parse(jsonString);
-        const chart = data.chart;
+    // Parse data based on provider
+    switch (provider) {
+      case 'yahoo':
+        const chart = j.chart;
         if (chart.error) {
-            console.error('Yahoo API Error:', chart.error.code, chart.error.description);
-            return [];
+          console.error('Yahoo API Error:', chart.error.description);
+          return [];
         }
         const result = chart.result[0];
         const timestamps = result.timestamp;
-        const quotes = result.indicators.quote[0];
-
         if (!timestamps) return [];
-
         return timestamps.map((ts, i) => ({
-            date: dayjs.unix(ts).format('YYYY-MM-DD'),
-            close: quotes.close[i]
+          date: dayjs.unix(ts).format('YYYY-MM-DD'),
+          close: result.indicators.quote[0].close[i]
         })).filter(d => d.close !== null).sort((a, b) => a.date.localeCompare(b.date));
 
-    } catch (e) {
-        console.error("Failed to parse Yahoo data", e);
-        return [];
+      case 'tiingo':
+        if (!Array.isArray(j) || j.length === 0) return [];
+        return j.map(d => ({ date: d.date.slice(0, 10), close: d.adjClose })).sort((a, b) => a.date.localeCompare(b.date));
+
+      case 'eod':
+        if (!Array.isArray(j) || j.length === 0) return [];
+        return j.map(d => ({ date: d.date, close: d.adjusted_close })).sort((a, b) => a.date.localeCompare(b.date));
+      
+      case 'eod_search':
+         return j;
+
+      default:
+        return j;
     }
+  } catch (e) {
+    console.warn(`Failed to fetch or parse data for ${ticker} from ${provider}:`, e);
+    return null; // Return null on failure
+  }
 }
-
-
-const TIINGO_API_KEY = '5e836ba8b127924b7fe89c72d448fe4610312ec5';
-const EOD_API_KEY = 'demo';
-
-const TiingoProvider = {
-  name: 'Tiingo',
-  async fetch(symbol) {
-    const startDate = dayjs().subtract(10, 'year').format('YYYY-MM-DD');
-    // Tiingo uses tickers without exchange, e.g., 'GOOGL' not 'GOOGL.US'
-    const cleanSymbol = symbol.split('.')[0];
-    const url = `https://api.tiingo.com/tiingo/daily/${cleanSymbol}/prices?startDate=${startDate}&token=${TIINGO_API_KEY}`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`Tiingo API request failed with status ${r.status}`);
-    const j = await r.json();
-    if (!Array.isArray(j) || j.length === 0) return [];
-    return j.map(d => ({ date: d.date.slice(0, 10), close: d.adjClose })).sort((a, b) => a.date.localeCompare(b.date));
-  }
-};
-
-const EODProvider = {
-  name: 'EOD',
-  async fetch(symbol) {
-    const url = `https://eodhistoricaldata.com/api/eod/${symbol}?api_token=${EOD_API_KEY}&fmt=json&period=d`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`EOD API request failed`);
-    const j = await r.json();
-    if (!Array.isArray(j) || j.length === 0) return [];
-    return j.map(d => ({ date: d.date, close: d.adjusted_close })).sort((a, b) => a.date.localeCompare(b.date));
-  }
-};
 
 async function fetchIndexData(symbol) {
     const endDate = dayjs().unix();
     const startDate = dayjs().subtract(20, 'year').unix();
-    try {
-        console.log(`Fetching index ${symbol} via Vercel Proxy`);
-        const jsonString = await getFinancialData(symbol, startDate, endDate);
-        const data = await parseYahooData(jsonString);
-        console.log(`Successfully fetched ${data.length} points for ${symbol} from Vercel proxy.`);
-        return data;
-    } catch (e) {
-        console.error(`Vercel proxy failed for ${symbol}, falling back to other providers.`, e);
-        // Fallback to other providers if Vercel proxy fails
-        return fetchBestUCData(symbol);
-    }
+    // Always use Yahoo via proxy for indices
+    return await fetchData('yahoo', symbol, { period1: startDate, period2: endDate });
 }
 
 async function fetchBestUCData(symbol) {
-    const providers = [TiingoProvider, EODProvider];
-    console.log(`Fetching best UC data for ${symbol} from ${providers.length} providers...`);
-
-    const promises = providers.map(p => p.fetch(symbol).catch(e => {
-        console.warn(`Provider ${p.name} failed for ${symbol}:`, e.message);
-        return null; // Return null on failure
-    }));
+    console.log(`Fetching best UC data for ${symbol} from providers via proxy...`);
+    // Try providers in parallel
+    const promises = [
+      fetchData('tiingo', symbol, { startDate: dayjs().subtract(10, 'year').format('YYYY-MM-DD') }),
+      fetchData('eod', symbol)
+    ];
 
     const results = await Promise.all(promises);
 
     let bestResult = [];
-    let bestProvider = 'none';
-
-    results.forEach((result, index) => {
+    results.forEach(result => {
         if (result && result.length > bestResult.length) {
             bestResult = result;
-            bestProvider = providers[index].name;
         }
     });
 
-    console.log(`Best data for ${symbol} is from ${bestProvider} with ${bestResult.length} points.`);
+    console.log(`Best data for ${symbol} has ${bestResult.length} points.`);
     return bestResult;
 }
 
@@ -574,13 +520,11 @@ async function searchUC(query) {
         byId('ucSearchResults').innerHTML = '';
         return;
     }
-    const url = `https://eodhistoricaldata.com/api/search/${query}?api_token=${EOD_API_KEY}`;
     try {
-        const response = await fetch(url);
-        const results = await response.json();
+        const results = await fetchData('eod_search', query);
         const resultsDiv = byId('ucSearchResults');
         resultsDiv.innerHTML = '';
-        if (results.length > 0) {
+        if (results && results.length > 0) {
             results.slice(0, 10).forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'search-result-item';
