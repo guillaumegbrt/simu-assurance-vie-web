@@ -1,5 +1,9 @@
 # Simulateur AV
 
+## Version 1.44
+- **Ajustement du style**: La largeur de la colonne "Année" dans le tableau des taux du Fonds Euro a été augmentée pour une meilleure lisibilité.
+- **Mise à jour de version**: Le numéro de build est passé à V1.44.
+
 ## Version 1.43
 - **Amélioration du Scénario 3**: Le scénario 3 (Dynamisation progressive) a été entièrement revu pour inclure :
   - L'ajout de versements programmés, similaires au scénario 2.
