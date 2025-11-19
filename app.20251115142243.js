@@ -1,4 +1,4 @@
-console.log('Build V1.40');
+console.log('Build V1.41');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -48,6 +48,7 @@ async function fetchData(provider, ticker, params = {}) {
         if (!Array.isArray(j) || j.length === 0) return [];
         return j.map(d => ({ date: d.date, close: d.adjusted_close })).sort((a, b) => a.date.localeCompare(b.date));
       
+      case 'yahoo_search':
       case 'eod_search':
          return j;
 
@@ -508,16 +509,16 @@ async function searchUC(query) {
         return;
     }
     try {
-        const results = await fetchData('eod_search', query);
+        const results = await fetchData('yahoo_search', query);
         const resultsDiv = byId('ucSearchResults');
         resultsDiv.innerHTML = '';
-        if (results && results.length > 0) {
-            results.slice(0, 10).forEach(item => {
+        if (results && results.quotes && results.quotes.length > 0) {
+            results.quotes.slice(0, 10).forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'search-result-item';
-                div.textContent = `${item.Name} (${item.Code}) [${item.Exchange}]`;
+                div.textContent = `${item.longname || item.shortname} (${item.symbol}) [${item.exchange}]`;
                 div.onclick = () => {
-                    const newUc = { name: item.Name, ticker: `${item.Code}.${item.Exchange}` };
+                    const newUc = { name: item.longname || item.shortname, ticker: item.symbol };
                     if (!state.ucs.some(uc => uc.ticker === newUc.ticker)) {
                         state.ucs.push(newUc);
                         addUcToSelectedTable(newUc);

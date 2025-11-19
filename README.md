@@ -1,5 +1,9 @@
 # Simulateur AV
 
+## Version 1.41
+- **Correction de la recherche d'UCs**: Le fournisseur de recherche pour les Unités de Compte (UCs) a été basculé de EOD à Yahoo Finance pour résoudre une erreur 403 (Forbidden) qui empêchait la recherche de fonctionner correctement.
+- **Mise à jour de version**: Le numéro de build est passé à V1.41.
+
 ## Version 1.40
 - **Correction de l'échelle des graphiques**: L'échelle de temps du graphique "Indices et UCs" est maintenant synchronisée avec celle des scénarios de simulation.
 - **Mise à jour de version**: Le numéro de build est passé à V1.40 dans tous les fichiers concernés.
