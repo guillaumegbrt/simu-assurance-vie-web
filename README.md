@@ -1,5 +1,9 @@
 # Simulateur AV
 
+## Version 2.01
+- **Correction du style**: L'alignement et la couleur de fond des boutons d'import et d'export dans la barre d'outils ont été corrigés pour une meilleure cohérence visuelle.
+- **Mise à jour de version**: Le numéro de build est passé à V2.01.
+
 ## Version 2.00
 - **Mise à jour majeure V2**: Passage à la version 2.00 pour marquer les améliorations significatives des versions précédentes.
 - **Correction du style**: La hauteur des boutons d'import et d'export a été harmonisée pour une meilleure apparence visuelle.

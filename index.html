@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
-  <title>Simulateur d'assurance vie V2.00</title>
+  <title>Simulateur d'assurance vie V2.01</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="stylesheet" href="style.20251115142243.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isSameOrBefore.js" defer></script>
-  <script>window.__BUILD_ID__ = 'V2.00'; console.log('Build', window.__BUILD_ID__);</script>
+  <script>window.__BUILD_ID__ = 'V2.01'; console.log('Build', window.__BUILD_ID__);</script>
   <script defer src="app.20251115142243.js"></script>
   <style>
     .euro-rates-table {
@@ -28,14 +28,20 @@
       width: 100%;
       box-sizing: border-box; /* Ensures padding and border are included in the total width */
     }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
     .toolbar button, .toolbar label.fileBtn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       padding: 0.5em 1em;
       border: 1px solid #ccc;
       border-radius: 5px;
-      background-color: #f7f7f7;
-      height: 38px; /* A fixed height */
+      background-color: #f0f0f0;
+      height: 38px;
       box-sizing: border-box;
     }
   </style>
