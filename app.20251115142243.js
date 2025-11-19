@@ -69,8 +69,10 @@ async function fetchIndexData(symbol) {
 
 async function fetchBestUCData(symbol) {
     console.log(`Fetching UC data for ${symbol} from Yahoo via proxy...`);
+    // Yahoo tickers for funds are often just the ISIN. Remove custom suffixes.
+    const yahooTicker = symbol.split('.')[0];
     // Use Yahoo provider for UCs as well
-    return await fetchIndexData(symbol);
+    return await fetchIndexData(yahooTicker);
 }
 
 // --- End Providers ---
