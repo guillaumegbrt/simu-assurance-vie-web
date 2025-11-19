@@ -1,5 +1,13 @@
 # Simulateur AV
 
+## Version 1.43
+- **Amélioration du Scénario 3**: Le scénario 3 (Dynamisation progressive) a été entièrement revu pour inclure :
+  - L'ajout de versements programmés, similaires au scénario 2.
+  - L'implémentation de la logique de "dynamisation", qui déplace progressivement un montant du Fonds Euro vers les Unités de Compte selon une répartition dédiée.
+  - Une mise à jour de l'interface pour accueillir ces nouvelles options de configuration.
+- **Correction du style (Taux Fonds Euro)**: Une solution CSS plus robuste a été mise en place pour corriger définitivement le problème de dépassement du tableau des taux du Fonds Euro.
+- **Mise à jour de version**: Le numéro de build est passé à V1.43.
+
 ## Version 1.42
 - **Correction de la récupération des données UC**: La logique de récupération des données pour les Unités de Compte (UC) a été corrigée pour utiliser directement le ticker fourni par l'API de recherche Yahoo Finance, ce qui résout les erreurs 404 (Not Found) pour certains fonds.
 - **Correction du style**: La largeur du tableau des taux du Fonds Euro a été ajustée pour qu'il ne dépasse plus de son conteneur, améliorant ainsi la mise en page.

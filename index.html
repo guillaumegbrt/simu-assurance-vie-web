@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
-  <title>Simulateur d'assurance vie V1.42</title>
+  <title>Simulateur d'assurance vie V1.43</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link rel="stylesheet" href="style.20251115142243.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -10,8 +10,25 @@
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isSameOrBefore.js" defer></script>
-  <script>window.__BUILD_ID__ = 'V1.42'; console.log('Build', window.__BUILD_ID__);</script>
+  <script>window.__BUILD_ID__ = 'V1.43'; console.log('Build', window.__BUILD_ID__);</script>
   <script defer src="app.20251115142243.js"></script>
+  <style>
+    .euro-rates-table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    .euro-rates-table th:first-child, .euro-rates-table td:first-child {
+      width: 80px;
+    }
+    .euro-rates-table th:last-child, .euro-rates-table td:last-child {
+      width: 40px;
+      text-align: center;
+    }
+    .euro-rates-table input {
+      width: 100%;
+      box-sizing: border-box; /* Ensures padding and border are included in the total width */
+    }
+  </style>
 </head>
 <body>
   <header class="header">
@@ -123,15 +140,33 @@
         <div class="sc-grid">
           <div>
             <label>Date de début <input type="date" class="s-date"/></label>
-            <label>Versement initial (€) <input type="number" class="s-init" value="1000"/></label>
-            <label>Quantité de mois <input type="number" class="s-months" value="12"/></label>
-            <label>Quantité du fonds euro à placer (€) <input type="number" class="s-euro-amount" value="10000"/></label>
+            <label>Versement initial (€) <input type="number" class="s-init" value="10000"/></label>
+            <hr/>
+            <label>Versements Programmés (€) <input type="number" class="s-prog" value="0"/></label>
+            <label>Fréquence
+              <select class="s-freq"><option>Mensuel</option><option>Trimestriel</option><option>Annuel</option></select>
+            </label>
+            <label>Début des programmés <input type="date" class="s-prog-start"/></label>
+            <label>Fin des programmés (optionnel) <input type="date" class="s-prog-end"/></label>
+            <hr/>
+            <label>Montant du fonds euro à dynamiser (€) <input type="number" class="s-euro-amount" value="5000"/></label>
+            <label>Durée de la dynamisation (mois) <input type="number" class="s-months" value="12"/></label>
           </div>
           <div>
             <div class="alloc-wrap">
-              <h4>Répartition sur les unités de comptes (%)</h4>
+              <h4>Répartition Versement Initial (%)</h4>
+              <div class="alloc-init" data-alloc="3"></div>
+              <div class="sum">Total : <span class="sumv-init" data-sum="3">0</span>%</div>
+            </div>
+            <div class="alloc-wrap">
+              <h4>Répartition Versements Programmés (%)</h4>
               <div class="alloc-prog" data-alloc="3"></div>
               <div class="sum">Total : <span class="sumv-prog" data-sum="3">0</span>%</div>
+            </div>
+            <div class="alloc-wrap">
+              <h4>Répartition de la Dynamisation (%)</h4>
+              <div class="alloc-dyna" data-alloc="3"></div>
+              <div class="sum">Total : <span class="sumv-dyna" data-sum="3">0</span>%</div>
             </div>
           </div>
         </div>

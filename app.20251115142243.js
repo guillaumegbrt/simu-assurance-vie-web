@@ -1,4 +1,4 @@
-console.log('Build V1.42');
+console.log('Build V1.43');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -90,7 +90,7 @@ function toMonthlyReturns(series){
 }
 
 // State
-const state={ euro:{ feeIn:0, rates:[] }, fees: { mgmtEuro: 0.7, mgmtUC: 0.8 }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},euroAmount:5000} ]};
+const state={ euro:{ feeIn:0, rates:[] }, fees: { mgmtEuro: 0.7, mgmtUC: 0.8 }, ucs:[], scenarios:[ {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{}}, {start:'',init:1000,prog:100,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{},allocProg:{}}, {start:'',init:10000,prog:0,freq:'Mensuel',progStart:'',progEnd:'',allocInit:{'Fonds_Euro': 100},allocProg:{},allocDyna:{},euroAmount:5000} ]};
 function save(){
   localStorage.setItem('simu-av', JSON.stringify(state));
 }
@@ -131,7 +131,7 @@ function load(){
 
 // UI builders
 function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
-function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const wrap = document.createElement('div'); wrap.className = 'table-wrap'; const tbl=document.createElement('table'); tbl.style.tableLayout = 'fixed'; tbl.innerHTML='<thead><tr><th style="width: 80px;">Année</th><th>Taux annuel net (%)</th><th style="width: 40px;"></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; } 
+function buildEuroRates(){ const host=byId('euroRates'); host.innerHTML=''; const wrap = document.createElement('div'); wrap.className = 'table-wrap'; const tbl=document.createElement('table'); tbl.className = 'euro-rates-table'; tbl.innerHTML='<thead><tr><th>Année</th><th>Taux annuel net (%)</th><th></th></tr></thead><tbody></tbody>'; const tb=tbl.querySelector('tbody'); for(const row of state.euro.rates){ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="number" value="${row.year}" class="er-year"/></td><td><input type="number" step="0.01" value="${row.rate}" class="er-rate"/></td><td><button class="del" type="button">×</button></td>`; tb.appendChild(tr); tr.querySelector('.er-year').onchange=e=>{row.year=+e.target.value; save();}; tr.querySelector('.er-rate').onchange=e=>{row.rate=+e.target.value; save();}; tr.querySelector('.del').onclick=()=>{ state.euro.rates=state.euro.rates.filter(x=>x!==row); buildEuroRates(); save(); }; } 
   wrap.appendChild(tbl); host.appendChild(wrap); }
 
 function addUcToSelectedTable(uc) {
@@ -200,6 +200,20 @@ function buildAllocForScenario(idx){
       hostProg.appendChild(makeAllocRow(idx, key, label, allocProg[key], 'Prog'));
     }
   }
+
+  // Dyna alloc for scenario 3
+  const hostDyna = $(`.alloc-dyna[data-alloc="${idx}"]`);
+  if (hostDyna) {
+    hostDyna.innerHTML = '';
+    let allocDyna = scenario.allocDyna || (scenario.allocDyna = {});
+    // No euro fund in dyna alloc
+    for(const uc of state.ucs){
+      const key=ucKey(uc);
+      if(allocDyna[key]===undefined) allocDyna[key]=0;
+      const label=uc.name||uc.ticker||'UC';
+      hostDyna.appendChild(makeAllocRow(idx, key, label, allocDyna[key], 'Dyna'));
+    }
+  }
 }
 function makeAllocRow(idx,key,label,val,type){
     const wrap=document.createElement('div');
@@ -216,7 +230,7 @@ function makeAllocRow(idx,key,label,val,type){
     });
     return wrap;
 }
-function updateAllSums(){ [1,2,3].forEach(idx => { updateSumFor(idx, 'Init'); if($(`.alloc-prog[data-alloc="${idx}"]`)) updateSumFor(idx, 'Prog'); }); }
+function updateAllSums(){ [1,2,3].forEach(idx => { updateSumFor(idx, 'Init'); if($(`.alloc-prog[data-alloc="${idx}"]`)) updateSumFor(idx, 'Prog'); if($(`.alloc-dyna[data-alloc="${idx}"]`)) updateSumFor(idx, 'Dyna'); }); }
 function updateSumFor(idx, type){
   if (!type) return;
   const alloc = state.scenarios[idx-1]['alloc'+type] || {};
@@ -240,9 +254,10 @@ function scheduleProg(freq){ return freq==='Mensuel'?1: freq==='Trimestriel'?3:1
 function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct, fees){
   const allocInit = s.allocInit || {};
   const allocProg = s.allocProg || {};
+  const allocDyna = s.allocDyna || {};
 
   const portfolio = {}; // { assetKey: value }
-  const allKeys = [...new Set([...Object.keys(allocInit), ...Object.keys(allocProg)])];
+  const allKeys = [...new Set([...Object.keys(allocInit), ...Object.keys(allocProg), ...Object.keys(allocDyna)])];
   for (const key of allKeys) {
     portfolio[key] = 0;
   }
@@ -255,6 +270,12 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct, fees){
   const feeIn=(feeInPct||0)/100;
   const feeMgmtEuro = (fees.mgmtEuro || 0) / 100;
   const feeMgmtUC = (fees.mgmtUC || 0) / 100;
+
+  // New variables for dynamisation
+  const dynaMonths = s.months || 0;
+  const dynaAmount = s.euroAmount || 0;
+  const dynaStepAmount = dynaMonths > 0 ? dynaAmount / dynaMonths : 0;
+  const dynaStartDate = s.start ? dayjs(s.start) : allMonths[0];
 
   let lastEuroReturnYear = -1;
   let lastMgmtFeeYear = -1;
@@ -303,6 +324,24 @@ function simulateScenario(s, allMonths, rByUC, euroRateByYear, feeInPct, fees){
         for (const key in allocProg) {
           const weight = (allocProg[key] || 0) / 100;
           if(weight > 0) portfolio[key] = (portfolio[key] || 0) + progInflow * weight;
+        }
+      }
+    }
+
+    // 4. Handle dynamisation
+    if (dynaStepAmount > 0) {
+      const monthsSinceDynaStart = monthDiff(dynaStartDate.startOf('month'), d.startOf('month'));
+      if (monthsSinceDynaStart >= 0 && monthsSinceDynaStart < dynaMonths) {
+        const amountToMove = Math.min(dynaStepAmount, portfolio['Fonds_Euro'] || 0);
+        if (amountToMove > 0) {
+          portfolio['Fonds_Euro'] -= amountToMove;
+          for (const key in allocDyna) {
+            if (key === 'Fonds_Euro') continue; // Should not be in allocDyna, but as a safeguard
+            const weight = (allocDyna[key] || 0) / 100;
+            if (weight > 0) {
+              portfolio[key] = (portfolio[key] || 0) + amountToMove * weight;
+            }
+          }
         }
       }
     }
