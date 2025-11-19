@@ -1,5 +1,10 @@
 # Simulateur AV
 
+## Version 2.00
+- **Mise à jour majeure V2**: Passage à la version 2.00 pour marquer les améliorations significatives des versions précédentes.
+- **Correction du style**: La hauteur des boutons d'import et d'export a été harmonisée pour une meilleure apparence visuelle.
+- **Mise à jour de version**: Le numéro de build est passé à V2.00.
+
 ## Version 1.44
 - **Ajustement du style**: La largeur de la colonne "Année" dans le tableau des taux du Fonds Euro a été augmentée pour une meilleure lisibilité.
 - **Mise à jour de version**: Le numéro de build est passé à V1.44.
