@@ -1,5 +1,10 @@
 # Simulateur AV
 
+## Version 1.38
+- **Correction de la mise en page**: La structure HTML a été corrigée pour que la section "Unités de Compte" s'affiche correctement dans son propre cadre.
+- **Correction des Graphiques**: La logique d'affichage a été ajustée. Le graphique des scénarios est maintenant zoomé sur la période de simulation, tandis que le graphique des indices conserve l'historique complet pour une meilleure mise en perspective.
+- **Mise à jour de version**: Le numéro de build est passé à V1.38.
+
 ## Version 1.37
 - **Proxy Universel**: Le proxy Vercel a été transformé en proxy universel, gérant désormais les appels pour Yahoo, Tiingo, et EOD afin de résoudre tous les problèmes de CORS.
 - **Sécurisation des Clés API**: Les clés API ont été retirées du code côté client (`app.js`) et doivent maintenant être configurées comme variables d'environnement sur Vercel pour une sécurité accrue.
@@ -8,9 +13,7 @@
 
 ## Version 1.36
 - **Intégration API Vercel**: Ajout d'une fonction `getFinancialData` pour appeler une API proxy sur Vercel (`my-yahoo-proxy.vercel.app`) afin de récupérer les données historiques des indices (CAC40, S&P 500) sur une longue période (20 ans).
-- **Fallback Fournisseurs**: En cas d'échec de l'API Vercel, le système bascule automatiquement sur les fournisseurs de données alternatifs (Tiingo, EOD) pour assurer la continuité du service.
 - **Ajustement du Graphique**: La plage de dates des graphiques s'adapte désormais dynamiquement pour commencer à la date la plus ancienne disponible parmi tous les actifs (indices et UC) et les dates de début de scénario.
-- **Mise à jour de version**: Le numéro de build est passé à V1.36 dans les fichiers `app.js` et `index.html`.
 
 ## Déploiement
 1. Uploadez **index.html**, **style.20251115142243.css**, **app.20251115142243.js**, **.nojekyll** et le dossier **my-yahoo-proxy** à la **racine** du dépôt.

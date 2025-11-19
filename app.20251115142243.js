@@ -1,4 +1,4 @@
-console.log('Build V1.37');
+console.log('Build V1.38');
 // Bannière d'erreur pour debug
 (function(){ window.addEventListener('error', e=>{ const b=document.getElementById('errorBanner'); if(b){ b.textContent = 'Erreur JavaScript: '+(e.message||''); b.style.display='block'; } console.error(e.error||e); }); })();
 try{
@@ -476,41 +476,53 @@ async function runSimulation(){
         rByUC[ucKey(uc)] = m;
       }
     }
-    // Collect all relevant dates to find the earliest starting point
-    const allRelevantDates = [];
-    if (cac && cac.length > 0) allRelevantDates.push(cac[0].date);
-    if (spx && spx.length > 0) allRelevantDates.push(spx[0].date);
+    
+    // --- Date Axes Calculation ---
+    // Axe pour les indices et UCs (historique complet)
+    const allHistoricalDates = [];
+    if (cac && cac.length > 0) allHistoricalDates.push(cac[0].date);
+    if (spx && spx.length > 0) allHistoricalDates.push(spx[0].date);
     for (const uc of state.ucs) {
-      if (uc.raw_series && uc.raw_series.length > 0) allRelevantDates.push(uc.raw_series[0].date);
+      if (uc.raw_series && uc.raw_series.length > 0) allHistoricalDates.push(uc.raw_series[0].date);
     }
-    for (const s of state.scenarios) {
-      if (s.start) allRelevantDates.push(s.start);
-    }
+    // Assurer qu'il y a au moins une date pour éviter les erreurs
+    if (allHistoricalDates.length === 0) allHistoricalDates.push(dayjs().format('YYYY-MM-DD'));
+    const allMonthsIndices = mkMonthAxis(allHistoricalDates);
 
-    let allMonths = mkMonthAxis(allRelevantDates);
+    // Axe pour les scénarios (commence à la date de simulation la plus précoce)
+    const scenarioStartDates = state.scenarios
+      .map(s => s.start)
+      .filter(Boolean); // Filtre les dates vides
+      
+    if (scenarioStartDates.length === 0) scenarioStartDates.push(dayjs().format('YYYY-MM-DD'));
+    const allMonthsScenarios = mkMonthAxis(scenarioStartDates);
+    // --- End Date Axes Calculation ---
+
 
     const euroByYear = Object.fromEntries(state.euro.rates.map(x=>[x.year, +x.rate||0]));
     const res=[];
     for(let i=0;i<3;i++){
-      res.push({label:`Scénario ${i+1}`, data: simulateScenario(state.scenarios[i], allMonths, rByUC, euroByYear, state.euro.feeIn, state.fees)});
+      res.push({label:`Scénario ${i+1}`, data: simulateScenario(state.scenarios[i], allMonthsScenarios, rByUC, euroByYear, state.euro.feeIn, state.fees)});
       const rCACmap=new Map(rCAC.map(x=>[x.date.slice(0,7),x.r]));
       const cacAlloc = {'Fonds_Euro':0,'__IDX__CAC40':100};
-      res.push({label:`Scénario ${i+1} (si CAC40)`, data: simulateScenario({...state.scenarios[i], allocInit:cacAlloc, allocProg:cacAlloc}, allMonths, {'__IDX__CAC40': rCACmap}, euroByYear, state.euro.feeIn, state.fees)});
+      res.push({label:`Scénario ${i+1} (si CAC40)`, data: simulateScenario({...state.scenarios[i], allocInit:cacAlloc, allocProg:cacAlloc}, allMonthsScenarios, {'__IDX__CAC40': rCACmap}, euroByYear, state.euro.feeIn, state.fees)});
       const rSPXmap=new Map(rSPX.map(x=>[x.date.slice(0,7),x.r]));
       const spxAlloc = {'Fonds_Euro':0,'__IDX__SP500':100};
-      res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonths, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn, state.fees)});
+      res.push({label:`Scénario ${i+1} (si S&P500)`, data: simulateScenario({...state.scenarios[i], allocInit:spxAlloc, allocProg:spxAlloc}, allMonthsScenarios, {'__IDX__SP500': rSPXmap}, euroByYear, state.euro.feeIn, state.fees)});
     }
-    const chartLabels = allMonths.map(d=>d.format('MM-YYYY'));
+    
+    const scenarioChartLabels = allMonthsScenarios.map(d=>d.format('MM-YYYY'));
     renderScenarioChart(
-      allMonths, // Pass Day.js objects
+      allMonthsScenarios,
       { scenarios: res },
-      chartLabels // Pass formatted labels separately
+      scenarioChartLabels
     );
 
+    const indicesChartLabels = allMonthsIndices.map(d=>d.format('MM-YYYY'));
     renderIndicesChart(
-      allMonths, // Pass Day.js objects
+      allMonthsIndices,
       { indices:[ {label:'CAC40', series:cac}, {label:'S&P500', series:spx} ], ucs: state.ucs },
-      chartLabels // Pass formatted labels separately
+      indicesChartLabels
     );
   }catch(e){ console.error('Run failed', e); }
 }
