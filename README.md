@@ -1,5 +1,9 @@
 # Simulateur AV
 
+## Version 2.02
+- **Correction du style**: La couleur de fond des boutons de la barre d'outils a été ajustée pour correspondre parfaitement aux autres boutons de l'application.
+- **Mise à jour de version**: Le numéro de build est passé à V2.02.
+
 ## Version 2.01
 - **Correction du style**: L'alignement et la couleur de fond des boutons d'import et d'export dans la barre d'outils ont été corrigés pour une meilleure cohérence visuelle.
 - **Mise à jour de version**: Le numéro de build est passé à V2.01.
